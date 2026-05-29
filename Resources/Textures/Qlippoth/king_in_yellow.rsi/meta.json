@@ -1,0 +1,14 @@
+{
+    "version": 1,
+    "license": "",
+    "copyright": "Dreadful Volition",
+    "size": {
+        "x": 40,
+        "y": 40
+    },
+    "states": [
+        {
+            "name": "front"
+        }
+    ]
+}
