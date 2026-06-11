@@ -79,6 +79,7 @@ namespace Content.Server.Qlippoth
     #endregion
 
     #region Fundamental Initiation Implementations
+    [DataDefinition]
     public sealed partial class InRangeClickInitiation : ExternalInitiation
     {
         public override void Register(EntityUid uid, QlippothActionInitiationSystem initiationSystem)
@@ -88,6 +89,7 @@ namespace Content.Server.Qlippoth
         }
     }
 
+    [DataDefinition]
     public sealed partial class OnPullInitiation : TriggerInitiation
     {
         public override void Register(EntityUid uid, QlippothActionInitiationSystem initiationSystem)

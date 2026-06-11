@@ -8,6 +8,7 @@
     - type: QlippothActions
       actions:
         - !type:QlippothAction
+          actionName: "DANTEH"
           initiation: !type:OnPullInitiation
           results:
             - !type:PlaySoundResult
@@ -17,7 +18,7 @@
       movementType: Animated
     - type: QlippothPresence
       presenceType: Curse
-      objectSize: Medium
+      objectSize: Huge
     - type: Item
       size: Small
     - type: Animateable
