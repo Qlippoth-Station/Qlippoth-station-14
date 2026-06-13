@@ -1,13 +1,24 @@
 - type: entity
-  id: QlippothHandSize
+  id: qlippothPrototype
   name: Qlippoth
   components: # most of these components are copy pasted from BaseItem, because parent structure is not fully defined yet.
     - type: Sprite
       sprite: Qlippoth/king_in_yellow.rsi
       state: front
-    - type: QlippothHandSize # to define all variables specific to the qlippoth.
-      qlippothSound: !type:SoundPathSpecifier
-        path: /Audio/Qlippoth/qlippoth.ogg
+    - type: QlippothActions
+      actions:
+        - !type:QlippothAction
+          actionName: "DANTEH"
+          initiation: !type:OnPullInitiation
+          results:
+            - !type:PlaySoundResult
+              soundPath: /Audio/Qlippoth/qlippoth.ogg
+              volume: 5
+    - type: QlippothMovement
+      movementType: Animated
+    - type: QlippothPresence
+      presenceType: Curse
+      objectSize: Huge
     - type: Item
       size: Small
     - type: Animateable
