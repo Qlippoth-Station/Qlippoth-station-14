@@ -1,0 +1,209 @@
+# BASE QLIPPOTH ENTITIES TO USE AS PARENTS #
+- type: entity
+  id: QlippothBase # keeps BaseControllable and remains as a future container for qlippoth stuff
+  name: Qlippoth Base
+  abstract: true
+  noSpawn: true
+  parent:
+  - BaseControllable
+  components:
+    - type: Sprite
+      sprite: Qlippoth/king_in_yellow.rsi # has a default sprite for testing
+      state: front
+    # Qlippoth Testing Aid
+    - type: QlippothPresence
+      presenceType: Object # default values, other presences not implemented
+      objectSize: Mob      # default value, will be changed for every Qlippoth
+    - type: QlippothMovement  # not finished
+      movementType: Animated
+    - type: QlippothActions
+      actions:
+        - !type:QlippothAction
+          actionName: "template"
+          initiation: !type:OnPullInitiation
+          results:
+            - !type:PlaySoundResult
+              soundPath: /Audio/Qlippoth/qlippoth.ogg
+              volume: 5
+
+
+
+- type: entity
+  id: QlippothMobBase
+  name: Qlippoth Mob Base
+  parent:
+  - QlippothBase
+  - BaseMob
+  - MobDamageable # all mob qlippoths will be damageable and available to combat. if an invincible mob is required, it can be built as a new template: "qlippothAnimatedObjectBase"
+  - MobCombat
+  components:
+    - type: Animateable
+    # Qlippoth Specific
+
+- type: entity
+  id: QlippothStructureBase
+  name: Qlippoth Structure Base
+  parent:
+  - QlippothBase
+  - BaseStructure
+  components:
+    # Huge Specific
+    - type: Physics
+      bodyType: Static
+    # could have fixture here.
+    # Qlippoth Specific
+
+- type: entity
+  id: QlippothWallBase
+  name: Qlippoth Wall Base
+  parent:
+  - QlippothStructureBase
+  components:
+    - type: Fixtures
+      fixtures:
+        fix1:
+          shape:
+            !type:PhysShapeAabb
+            bounds: "-0.45,-0.45,0.45,0.45"
+          density: 100
+          mask:
+          - FullTileMask
+          layer:
+          - WallLayer
+    # Qlippoth Specific
+
+- type: entity
+  id: QlippothMachineBase
+  name: Qlippoth Machine Base
+  parent:
+  - QlippothStructureBase
+  - BaseStructureComputer
+  components:
+    - type: Fixtures
+      fixtures:
+        fix1:
+          shape:
+            !type:PhysShapeAabb
+            bounds: "-0.45,-0.45,0.45,0.45"
+          density: 100
+          mask:
+          - MachineMask
+          layer:
+          - MachineLayer
+    # need an activation method, unless every Qlippoth handles it in a different way
+    # Qlippoth Specific
+
+- type: entity
+  id: QlippothLargeBase
+  name: Qlippoth Large Base
+  parent:
+  - QlippothBase
+  - BaseStructureDynamic
+  components:
+    # Large Specific
+    - type: Physics
+    - type: Fixtures
+      fixtures:
+        fix1:
+          shape:
+            !type:PhysShapeAabb
+            bounds: "-0.25,-0.25,0.25,0.25"
+          density: 190
+          mask:
+          - MachineMask
+          layer:
+          - MachineLayer
+    - type: Pullable
+    - type: DamageExaminable # idk if it exists in parents but sure
+    # Qlippoth Specific
+
+- type: entity
+  id: QlippothItemBase # do not spawn
+  name: Qlippoth Item Base
+  parent:
+  - QlippothBase
+  - BaseItem
+  abstract: false # until tests are done !!!!
+  noSpawn: false # until tests are done !!!!
+  components:
+    # Item Specific
+    - type: Item
+      size: Small
+    # Qlippoth Specific
+
+- type: entity
+  id: QlippothClothingBase
+  name: Qlippoth Clothing Base
+  parent: QlippothItemBase
+  components:
+  # Clothing Specific
+    - type: Clothing
+      slots: # needs to be overriden but kept for future references
+        - Head
+        - Mask
+        - Back
+        - Chest
+        - Gloves
+        - Belt
+        - Legs
+        - Feet
+  # Qlippoth Specific
+
+# QLIPPOTH ENTITIES TO SPAWN #
+- type: entity
+  id: QlippothPrototype
+  name: Qlippoth Tester
+  parent: QlippothBase
+  abstract: false # set true in base objects, overriden
+  noSpawn: false  # set true in base objects, overriden
+  components: # this needs to be remade after all the systems are in place.
+    - type: Sprite
+      sprite: Qlippoth/king_in_yellow.rsi
+      state: front
+    - type: QlippothActions
+      actions:
+        - !type:QlippothAction
+          actionName: "templatePullSound"
+          initiation: !type:OnPullInitiation
+          results:
+            - !type:PlaySoundResult
+              soundPath: /Audio/Qlippoth/qlippoth.ogg
+              volume: 5
+    - type: QlippothMovement
+      movementType: Animated
+    - type: QlippothPresence
+      presenceType: Object
+      objectSize: Huge
+    - type: Item
+      size: Small
+    - type: Animateable
+    - type: Clickable
+    - type: InteractionOutline
+    - type: MovedByPressure
+    - type: EmitSoundOnCollide
+      sound:
+        collection: WeakHit
+    - type: EmitSoundOnLand
+      sound:
+        path: /Audio/Effects/drop.ogg
+        params:
+          volume: 2
+    - type: Physics
+      bodyType: Dynamic
+      fixedRotation: false
+    - type: Fixtures
+      fixtures:
+        fix1:
+          shape:
+            !type:PhysShapeAabb
+            bounds: "-0.25,-0.25,0.25,0.25"
+          density: 20
+          mask:
+          - ItemMask
+          restitution: 0.3
+          friction: 0.2
+    - type: Pullable
+    - type: DamageExaminable
+
+
+
