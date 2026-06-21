@@ -3,7 +3,6 @@
   id: QlippothBase # keeps BaseControllable and remains as a future container for qlippoth stuff
   name: Qlippoth Base
   abstract: true
-  noSpawn: true
   parent:
   - BaseControllable
   components:
@@ -147,7 +146,6 @@
   name: Qlippoth Tester
   parent: QlippothBase
   abstract: false # set true in base objects, overriden
-  noSpawn: false  # set true in base objects, overriden
   components: # this needs to be remade after all the systems are in place.
     - type: Sprite
       sprite: Qlippoth/king_in_yellow.rsi
