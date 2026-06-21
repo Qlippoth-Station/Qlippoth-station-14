@@ -123,8 +123,6 @@
   parent:
   - QlippothBase
   - BaseItem
-  abstract: false # until tests are done !!!!
-  noSpawn: false # until tests are done !!!!
   components:
     # Item Specific
     - type: Item
@@ -139,14 +137,8 @@
   # Clothing Specific
     - type: Clothing
       slots: # needs to be overriden but kept for future references
-        - Head
-        - Mask
-        - Back
-        - Chest
-        - Gloves
-        - Belt
-        - Legs
-        - Feet
+      # NONE, HEAD, MASK, OUTERCLOTHING, EYES, EARS, HAND, FEET, GLOVES, IDCARD, BELT, BACK, NECK, INNERCLOTHING, POCKET, LEGS, SUITSTORAGE, All, WITHOUT_POCKET
+        - HEAD
   # Qlippoth Specific
 
 # QLIPPOTH ENTITIES TO SPAWN #
