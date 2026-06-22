@@ -1,4 +1,5 @@
 # BASE QLIPPOTH ENTITIES TO USE AS PARENTS #
+# THE Base Qlippoth
 - type: entity
   id: QlippothBase # keeps BaseControllable and remains as a future container for qlippoth stuff
   name: Qlippoth Base
@@ -26,7 +27,7 @@
               volume: 5
 
 
-
+# Presence and Object Type Parents
 - type: entity
   id: QlippothMobBase
   name: Qlippoth Mob Base
@@ -140,6 +141,64 @@
         - HEAD
   # Qlippoth Specific
 
+# Movement Parents
+- type: entity
+  id: QlippothInanimateBase
+  name: Qlippoth Inanimate Base
+  parent:
+  - QlippothBase
+  components:
+    # make sure to remove any movement controls here, or to set speed to 0 for short term inanimate situations
+    # density is decided uniquely for qlippoths and is crucial
+    - type: Physics
+      bodyType: Dynamic
+    - type: QlippothMovement
+      movementType: Inanimate #test this - previous controllers are not overriden so might not be working !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    - type: Pullable
+
+- type: entity
+  id: QlippothStaticBase
+  name: Qlippoth Static Base
+  parent:
+    - QlippothBase
+  components:
+  - type: Physics
+    bodyType: Static
+  - type: QlippothMovement
+    movementType: Static
+
+- type: entity
+  id: QlippothAnimatedBase
+  name: Qlippoth Animated Base
+  parent:
+      - QlippothBase
+  components:
+  - type: Physics
+      bodyType: Dynamic
+  - type: QlippothMovement
+      movementType: Animated
+  - type: InputMover
+  - type: MobMover
+  - type: MovementSpeedModifier
+
+- type: entity
+  id: QlippothNonConstrainedBase
+  name: Qlippoth Non-Constrained Base
+  parent:
+  - QlippothBase
+  components:
+  - type: QlippothMovement
+    movementType: NonConstrained
+  - type: Physics
+    bodyType: Static # ? test ?
+    canCollide: false
+  - type: InputMover
+  - type: MobMover
+  - type: MovementSpeedModifier
+# conditionally animated and specialists are too dependent on c# code so they are for later.
+
+
+
 # QLIPPOTH ENTITIES TO SPAWN #
 - type: entity
   id: QlippothPrototype
@@ -194,6 +253,3 @@
           friction: 0.2
     - type: Pullable
     - type: DamageExaminable
-
-
-
