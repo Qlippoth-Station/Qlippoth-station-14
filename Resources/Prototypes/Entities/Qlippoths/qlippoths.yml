@@ -31,6 +31,7 @@
 - type: entity
   id: QlippothMobBase
   name: Qlippoth Mob Base
+  abstract: true
   parent:
   - QlippothBase
   - BaseMob
@@ -43,6 +44,7 @@
 - type: entity
   id: QlippothStructureBase
   name: Qlippoth Structure Base
+  abstract: true
   parent:
   - QlippothBase
   - BaseStructure
@@ -56,6 +58,7 @@
 - type: entity
   id: QlippothWallBase
   name: Qlippoth Wall Base
+  abstract: true
   parent:
   - QlippothStructureBase
   components:
@@ -75,6 +78,7 @@
 - type: entity
   id: QlippothMachineBase
   name: Qlippoth Machine Base
+  abstract: true
   parent:
   - QlippothStructureBase
   - BaseStructureComputer
@@ -96,6 +100,7 @@
 - type: entity
   id: QlippothLargeBase
   name: Qlippoth Large Base
+  abstract: true
   parent:
   - QlippothBase
   - BaseStructureDynamic
@@ -120,6 +125,7 @@
 - type: entity
   id: QlippothItemBase # do not spawn
   name: Qlippoth Item Base
+  abstract: true
   parent:
   - QlippothBase
   - BaseItem
@@ -132,6 +138,7 @@
 - type: entity
   id: QlippothClothingBase
   name: Qlippoth Clothing Base
+  abstract: true
   parent: QlippothItemBase
   components:
   # Clothing Specific
@@ -145,6 +152,7 @@
 - type: entity
   id: QlippothInanimateBase
   name: Qlippoth Inanimate Base
+  abstract: true
   parent:
   - QlippothBase
   components:
@@ -153,30 +161,34 @@
     - type: Physics
       bodyType: Dynamic
     - type: QlippothMovement
-      movementType: Inanimate #test this - previous controllers are not overriden so might not be working !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      movementType: Inanimate
     - type: Pullable
 
 - type: entity
   id: QlippothStaticBase
   name: Qlippoth Static Base
+  abstract: true
   parent:
-    - QlippothBase
+  - QlippothBase
   components:
   - type: Physics
     bodyType: Static
   - type: QlippothMovement
     movementType: Static
+  - type: Transform
+    anchored: true
 
 - type: entity
   id: QlippothAnimatedBase
   name: Qlippoth Animated Base
+  abstract: true
   parent:
-      - QlippothBase
+  - QlippothBase
   components:
   - type: Physics
-      bodyType: Dynamic
+    bodyType: KinematicController
   - type: QlippothMovement
-      movementType: Animated
+    movementType: Animated
   - type: InputMover
   - type: MobMover
   - type: MovementSpeedModifier
@@ -184,14 +196,24 @@
 - type: entity
   id: QlippothNonConstrainedBase
   name: Qlippoth Non-Constrained Base
+  abstract: true
   parent:
   - QlippothBase
   components:
   - type: QlippothMovement
     movementType: NonConstrained
   - type: Physics
-    bodyType: Static # ? test ?
+    bodyType: KinematicController
     canCollide: false
+  - type: Fixtures
+    fixtures:
+      fix1:
+        shape:
+          !type:PhysShapeCircle
+          radius: 0.35
+        density: 100
+        mask: []
+        layer: []
   - type: InputMover
   - type: MobMover
   - type: MovementSpeedModifier
