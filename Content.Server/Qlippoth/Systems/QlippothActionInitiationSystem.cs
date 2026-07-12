@@ -11,6 +11,10 @@ namespace Content.Server.Qlippoth
     {
         [Dependency] private QlippothActionResultSystem _resultSystem = default!;
 
+        /// <summary>
+        /// Actual subscriptions to events, happen here.
+        /// Initiation components just decide which subscriptions apply to that specific Qlippoth.
+        /// </summary>
         public override void Initialize()
         {
             base.Initialize();

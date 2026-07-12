@@ -85,7 +85,7 @@ namespace Content.Server.Qlippoth
         public override void Register(EntityUid uid, QlippothActionInitiationSystem initiationSystem)
         {
             ISawmill sawmill = Logger.GetSawmill("qlippoth");
-            sawmill.Warning("InRangeClickInitiation Register() is not implemented yet, actions with this initiation will not trigger.");
+            sawmill.Warning("InRangeClickInitiation Register() is not subscribed yet.");
         }
     }
 
@@ -95,7 +95,7 @@ namespace Content.Server.Qlippoth
         public override void Register(EntityUid uid, QlippothActionInitiationSystem initiationSystem)
         {
             ISawmill sawmill = Logger.GetSawmill("qlippoth");
-            sawmill.Warning("OnPullInitiation Register() is not implemented yet, actions with this initiation will not trigger.");
+            sawmill.Warning("OnPullInitiation event is subscribed to in QlippothActionInitiationSystem.cs. This component gives Qlippoths the ability to use it.");
         }
     }
     #endregion
