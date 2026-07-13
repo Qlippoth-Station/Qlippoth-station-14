@@ -94,7 +94,7 @@ namespace Content.Server.Qlippoth
         {
             ISawmill sawmill = Logger.GetSawmill("qlippoth"); // error logging
 
-            var tile = resultSystem.Atmosphere.GetTileMixture(uid, excite: true); // tile of the object
+            var tile = resultSystem.Atmosphere.GetTileMixture(uid, excite: true); // atmos state of the tile the object is on
             if (tile == null)
             {
                 sawmill.Warning($"ReleaseGasResult.Execute() failed to get tile mixture for entity {uid}");
@@ -110,6 +110,34 @@ namespace Content.Server.Qlippoth
 
             // merging the gasses in the tile and in our mixture
             resultSystem.Atmosphere.Merge(tile, mixture);
+        }
+    }
+
+    [DataDefinition]
+    public sealed partial class SpawnItemResult : ProduceResult
+    {
+        [DataField(required: true)]
+        public string SpawnItem { get; set; } = string.Empty;
+
+        [DataField]
+        public int Count { get; set; } = 1;
+
+        public override void Execute(EntityUid uid, QlippothActionResultSystem resultSystem, object? eventArgs = null)
+        {
+            ISawmill sawmill = Logger.GetSawmill("qlippoth"); // error logging
+
+            // qlippothPosition is set as EntityCoordinates here because SpawnEntity uses that as the second parameter.
+            var qlippothPosition = resultSystem.QlippothEntityManager.GetComponent<TransformComponent>(uid).Coordinates; // get the position of the Qlippoth to spawn items at
+
+            for (var i = 0; i < Count; i++)
+            {
+                var spawnedEntity = resultSystem.QlippothEntityManager.SpawnEntity(SpawnItem, qlippothPosition);
+                if (!resultSystem.QlippothEntityManager.EntityExists(spawnedEntity))
+                {
+                    sawmill.Warning($"SpawnItemResult: failed to spawn {SpawnItem}");
+                    return;
+                }
+            }
         }
     }
     #endregion

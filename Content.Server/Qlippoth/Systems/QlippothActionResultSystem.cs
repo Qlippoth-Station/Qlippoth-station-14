@@ -13,7 +13,8 @@ namespace Content.Server.Qlippoth
         #region dependencies
         [Dependency] public SharedAudioSystem Audio = default!;
         [Dependency] public AtmosphereSystem Atmosphere = default!;
-        [Dependency] public SharedTransformSystem XformSystem = default!;
+        [Dependency] public SharedTransformSystem QlippothTransform = default!;
+        [Dependency] public IEntityManager QlippothEntityManager = default!;
         #endregion
         public override void Initialize()
         {
