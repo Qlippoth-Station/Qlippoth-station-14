@@ -1,6 +1,7 @@
 using Robust.Shared.Serialization.Manager.Attributes;
 using Robust.Shared.Audio;
 using Robust.Shared.Audio.Systems;
+using Content.Shared.Atmos;
 
 namespace Content.Server.Qlippoth
 {
@@ -25,7 +26,7 @@ namespace Content.Server.Qlippoth
     [DataDefinition]
     public abstract partial class ProduceResult : QlippothResult { }
     // -------------------------------------------------------------------------
-    // Produce - Includes any physical change or material that is exerted from a Qlippoth. (Spawning new objects, gas, sound etc.)
+    // Produce - Includes any physical change or material that is released from a Qlippoth. (Spawning new objects, gas, sound etc.)
     // -------------------------------------------------------------------------
 
     [DataDefinition]
@@ -64,16 +65,52 @@ namespace Content.Server.Qlippoth
     [DataDefinition]
     public sealed partial class PlaySoundResult : ProduceResult
     {
-        public override void Execute(EntityUid uid, QlippothActionResultSystem resultSystem, object? eventArgs = null)
-        {
-            var specifier = new SoundPathSpecifier(SoundPath);
-            resultSystem.Audio.PlayPvs(specifier, uid, AudioParams.Default.WithVolume(Volume));
-        }
         [DataField(required: true)]
         public string SoundPath { get; set; } = string.Empty;
 
         [DataField]
         public float Volume { get; set; } = 0f;
+        public override void Execute(EntityUid uid, QlippothActionResultSystem resultSystem, object? eventArgs = null)
+        {
+            var specifier = new SoundPathSpecifier(SoundPath);
+            resultSystem.Audio.PlayPvs(specifier, uid, AudioParams.Default.WithVolume(Volume));
+        }
+
+    }
+
+    [DataDefinition]
+    public sealed partial class ReleaseGasResult : ProduceResult
+    {
+        [DataField(required: true)]
+        public Gas GasType { get; set; } = Gas.Oxygen; // transform this into a dictionary: Dictionary<Gas, float> to have concoctions
+
+        [DataField]
+        public float Moles { get; set; } = 1f;
+
+        [DataField]
+        public float Temperature { get; set; } = Atmospherics.T20C;
+
+        public override void Execute(EntityUid uid, QlippothActionResultSystem resultSystem, object? eventArgs = null)
+        {
+            ISawmill sawmill = Logger.GetSawmill("qlippoth"); // error logging
+
+            var tile = resultSystem.Atmosphere.GetTileMixture(uid, excite: true); // tile of the object
+            if (tile == null)
+            {
+                sawmill.Warning($"ReleaseGasResult.Execute() failed to get tile mixture for entity {uid}");
+                return;
+            }
+
+            var mixture = new GasMixture(volume: 1f) // combination of gasses (1 for now) to be released
+            {
+                Temperature = Temperature  //mixture.Temp = ReleaseGasResult.Temp
+            };
+            mixture.SetMoles(GasType, Moles); // setup mixture
+
+
+            // merging the gasses in the tile and in our mixture
+            resultSystem.Atmosphere.Merge(tile, mixture);
+        }
     }
     #endregion
 

@@ -1,5 +1,6 @@
-using Robust.Shared.GameObjects;
-using Robust.Shared.Audio.Systems;
+using Content.Server.Atmos.EntitySystems;   // AtmosphereSystem
+using Robust.Shared.GameObjects;            // SharedTransformSystem
+using Robust.Shared.Audio.Systems;          // SharedAudioSystem
 
 namespace Content.Server.Qlippoth
 {
@@ -11,6 +12,8 @@ namespace Content.Server.Qlippoth
     {
         #region dependencies
         [Dependency] public SharedAudioSystem Audio = default!;
+        [Dependency] public AtmosphereSystem Atmosphere = default!;
+        [Dependency] public SharedTransformSystem XformSystem = default!;
         #endregion
         public override void Initialize()
         {
