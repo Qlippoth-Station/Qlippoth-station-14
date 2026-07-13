@@ -1,3 +1,4 @@
+using Content.Server.Ghost.Roles.Components;
 using Robust.Shared.Serialization.Manager.Attributes;
 using Robust.Shared.Audio;
 using Robust.Shared.Audio.Systems;
@@ -140,9 +141,81 @@ namespace Content.Server.Qlippoth
             }
         }
     }
+
+    [DataDefinition]
+    public sealed partial class SpawnMobResult : ReproduceResult
+    {
+        [DataField(required: true)]
+        public string SpawnMob { get; set; } = string.Empty;
+
+        [DataField]
+        public int Count { get; set; } = 1;
+
+        public override void Execute(EntityUid uid, QlippothActionResultSystem resultSystem, object? eventArgs = null)
+        {
+            ISawmill sawmill = Logger.GetSawmill("qlippoth"); // error logging
+
+            // qlippothPosition is set as EntityCoordinates here because SpawnEntity uses that as the second parameter.
+            var qlippothPosition = resultSystem.QlippothEntityManager.GetComponent<TransformComponent>(uid).Coordinates; // get the position of the Qlippoth to spawn items at
+
+
+            for (var i = 0; i < Count; i++)
+            {
+                var spawnedEntity = resultSystem.QlippothEntityManager.SpawnEntity(SpawnMob, qlippothPosition);
+                if (!resultSystem.QlippothEntityManager.EntityExists(spawnedEntity))
+                {
+                    sawmill.Warning($"SpawnMobResult: failed to spawn {SpawnMob}");
+                    return;
+                }
+                // need to separate this line with logic or a new result, but for testing: ghost offer functionality
+                var ghostRole = resultSystem.QlippothEntityManager.EnsureComponent<GhostRoleComponent>(spawnedEntity);
+
+                ghostRole.RoleName = "Qlippoth Influence Exertion";
+                ghostRole.RoleDescription = "A creature spawned by a Qlippoth.";
+                ghostRole.RoleRules = "You are free.";
+
+                resultSystem.QlippothEntityManager.EnsureComponent<GhostTakeoverAvailableComponent>(spawnedEntity);
+            }
+        }
+    }
     #endregion
 
-    #region Complex Result Implementations
+    #region Qlippoth-related Result Implementations
+
+    [DataDefinition]
+    public sealed partial class SpawnQlippothResult : ReproduceResult
+    {
+        [DataField(required: true)]
+        public string SpawnQlippoth { get; set; } = string.Empty;
+
+        [DataField]
+        public int Count { get; set; } = 1;
+
+        public override void Execute(EntityUid uid, QlippothActionResultSystem resultSystem, object? eventArgs = null)
+        {
+            ISawmill sawmill = Logger.GetSawmill("qlippoth"); // error logging
+
+            // qlippothPosition is set as EntityCoordinates here because SpawnEntity uses that as the second parameter.
+            var qlippothPosition = resultSystem.QlippothEntityManager.GetComponent<TransformComponent>(uid).Coordinates; // get the position of the Qlippoth to spawn items at
+
+            for (var i = 0; i < Count; i++)
+            {
+                var spawnedEntity = resultSystem.QlippothEntityManager.SpawnEntity(SpawnQlippoth, qlippothPosition);
+                if (!resultSystem.QlippothEntityManager.EntityExists(spawnedEntity))
+                {
+                    sawmill.Warning($"SpawnQlippothResult: failed to spawn {SpawnQlippoth}");
+                    return;
+                }
+                var ghostRole = resultSystem.QlippothEntityManager.EnsureComponent<GhostRoleComponent>(spawnedEntity);
+
+                ghostRole.RoleName = "Qlippoth Servant";
+                ghostRole.RoleDescription = "A creature spawned by a Qlippoth.";
+                ghostRole.RoleRules = "You are a monster. Obey your master.";
+
+                resultSystem.QlippothEntityManager.EnsureComponent<GhostTakeoverAvailableComponent>(spawnedEntity);
+            }
+        }
+    }
     #endregion
 
     #region Other Result Implementations
