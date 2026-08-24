@@ -1,0 +1,6 @@
+- type: tile
+  id: FloorBackrooms
+  parent: BaseStationTile
+  name: Backrooms floor
+  sprite: /Textures/Tiles/Planet/backrooms.rsi/backrooms.png
+  indestructible: true

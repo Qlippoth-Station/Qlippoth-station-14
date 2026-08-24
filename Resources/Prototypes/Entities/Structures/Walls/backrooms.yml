@@ -1,0 +1,13 @@
+- type: entity
+  parent: BaseWall
+  id: WallBackrooms
+  name: backrooms wall
+  description: An uncanny yellow wall from the backrooms.
+  components:
+    - type: Sprite
+      sprite: Structures/Walls/backrooms_wall.rsi
+      layers:
+        - state: backrooms_wall
+    - type: Icon
+      sprite: Structures/Walls/backrooms_wall.rsi
+      state: backrooms_wall
