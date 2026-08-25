@@ -5,6 +5,10 @@ using Robust.Shared.Prototypes;
 using Content.Server.Cargo.Systems;
 using Content.Server.Station.Systems;
 using Content.Shared.Cargo.Components;
+using Content.Shared.Cargo.Prototypes;
+using Content.Shared.CCVar;
+using Robust.Shared.Configuration;
+using System.Linq;
 
 namespace Content.Server.Qlippoth.Systems;
 
@@ -107,7 +111,7 @@ public sealed class QlippothMarketSystem : EntitySystem
         return Loc.GetString("containment-market-stock", ("stock", string.Join("\n", lines)));
     }
 
-    private static string GetPhaseName(QGatePhase phase)
+    private string GetPhaseName(QGatePhase phase)
     {
         return phase switch
         {

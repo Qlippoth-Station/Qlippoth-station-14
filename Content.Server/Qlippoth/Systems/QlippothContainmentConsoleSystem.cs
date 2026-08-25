@@ -2,6 +2,7 @@ using Content.Shared.Qlippoth.Components;
 using Content.Shared.UserInterface;
 using Robust.Server.GameObjects;
 using Robust.Shared.Timing;
+using System.Linq;
 
 namespace Content.Server.Qlippoth.Systems;
 

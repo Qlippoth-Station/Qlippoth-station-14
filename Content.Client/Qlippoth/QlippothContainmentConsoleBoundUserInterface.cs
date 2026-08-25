@@ -17,6 +17,7 @@ public sealed class QlippothContainmentConsoleBoundUserInterface(EntityUid owner
     private Button? _purchaseButton;
     private Button? _buildButton;
     private OptionButton? _marketSelection;
+    private readonly List<string> _marketProtoIds = new();
 
     protected override void Open()
     {
@@ -44,8 +45,8 @@ public sealed class QlippothContainmentConsoleBoundUserInterface(EntityUid owner
         _marketSelection = new OptionButton();
         _marketSelection.OnItemSelected += args =>
         {
-            if (_marketSelection.GetItemMetadata(args.Id) is string protoId)
-                SendMessage(new QlippothMarketSelectMessage(protoId));
+            if (args.Id >= 0 && args.Id < _marketProtoIds.Count)
+                SendMessage(new QlippothMarketSelectMessage(_marketProtoIds[args.Id]));
         };
         content.AddChild(_marketSelection);
 
@@ -69,9 +70,11 @@ public sealed class QlippothContainmentConsoleBoundUserInterface(EntityUid owner
         _purchaseButton!.Visible = consoleState.Title.Contains("Auction", StringComparison.OrdinalIgnoreCase);
         _marketSelection!.Visible = _purchaseButton.Visible;
         _marketSelection.Clear();
+        _marketProtoIds.Clear();
         foreach (var entry in consoleState.MarketEntries)
         {
-            _marketSelection.AddItem($"{entry.Name} | {entry.Phase} | {entry.Price}", entry.ProtoId);
+            _marketProtoIds.Add(entry.ProtoId);
+            _marketSelection.AddItem($"{entry.Name} | {entry.Phase} | {entry.Price}", _marketProtoIds.Count - 1);
         }
         _buildButton!.Visible = consoleState.Title.Contains("Blueprint", StringComparison.OrdinalIgnoreCase);
     }

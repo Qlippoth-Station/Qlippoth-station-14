@@ -10,6 +10,7 @@ using Content.Shared.Hands.EntitySystems;
 using Content.Shared.Qlippoth.Components;
 using Content.Shared.Damage;
 using Content.Shared.Damage.Components;
+using Content.Shared.Damage.Systems;
 using Content.Server.Chat.Systems;
 using Content.Shared.Interaction;
 using Robust.Shared.Placement;
@@ -29,6 +30,7 @@ public sealed partial class ContainmentDimensionSystem : EntitySystem
     [Dependency] private IPlayerManager _players = default!;
     [Dependency] private SharedHandsSystem _hands = default!;
     [Dependency] private readonly ChatSystem _chat = default!;
+    [Dependency] private DamageableSystem _damageable = default!;
 
     public MapId ContainmentMapId { get; private set; } = MapId.Nullspace;
     private bool _layoutBuilt;
@@ -80,7 +82,7 @@ public sealed partial class ContainmentDimensionSystem : EntitySystem
 
     private void OnChamberDamaged(EntityUid uid, ContainmentChamberComponent chamber, DamageChangedEvent args)
     {
-        if (chamber.IsBreached || args.Damageable.TotalDamage < chamber.BreachThreshold)
+        if (chamber.IsBreached || _damageable.GetTotalDamage((uid, args.Damageable)) < chamber.BreachThreshold)
             return;
 
         chamber.IsBreached = true;

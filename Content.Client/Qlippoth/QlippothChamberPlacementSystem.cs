@@ -24,7 +24,7 @@ public sealed class QlippothChamberPlacementSystem : EntitySystem
         if (player is not { } playerUid)
             return;
 
-        var held = _hands.GetActiveItem(playerUid.AsNullable());
+        var held = _hands.GetActiveItem(playerUid);
         if (held is not { } heldUid || !TryComp<QlippothChamberConstructionKitComponent>(heldUid, out _))
         {
             if (_placement.CurrentPermission?.EntityType == "ContainmentChamberMarker" &&

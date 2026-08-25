@@ -4,6 +4,7 @@ using Content.Server.Popups;
 using Content.Shared.CCVar;
 using Robust.Shared.Random;
 using Robust.Shared.Timing;
+using Robust.Shared.Configuration;
 
 namespace Content.Server.Qlippoth.Systems;
 

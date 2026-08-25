@@ -40,7 +40,7 @@ public sealed class QlippothChamberPlacementMode : PlacementMode
         var mapId = transform.GetMapId(position);
         var containmentMap = MapId.Nullspace;
         var chambers = pManager.EntityManager.EntityQuery<ContainmentChamberComponent, TransformComponent>();
-        while (chambers.MoveNext(out _, out _, out var chamberTransform))
+        foreach (var (_, chamberTransform) in chambers)
         {
             containmentMap = chamberTransform.MapID;
             break;
