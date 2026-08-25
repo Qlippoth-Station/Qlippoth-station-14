@@ -1,0 +1,15 @@
+- type: latheRecipe
+  parent: BaseToolRecipe
+  id: QlippothBreachSealDevice
+  result: QlippothBreachSealDevice
+  materials:
+    Steel: 300
+    Glass: 200
+
+- type: latheRecipe
+  parent: BaseToolRecipe
+  id: ContainmentChamberConstructionKit
+  result: ContainmentChamberConstructionKit
+  materials:
+    Steel: 1200
+    Glass: 800

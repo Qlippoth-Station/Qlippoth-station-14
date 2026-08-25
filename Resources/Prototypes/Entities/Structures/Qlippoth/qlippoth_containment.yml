@@ -1,0 +1,239 @@
+# Qlippoth Containment System Prototypes
+# Consoles, Chambers, Capsules, and Portals
+
+# Q-Gate Tracker Console (Security & Science)
+- type: entity
+  id: ComputerQGateTracker
+  parent: BaseComputer
+  name: Q-Gate Tracker Console
+  description: Monitors dimensional instabilities and predicts incoming Q-Gate spawns.
+  components:
+  - type: QGateRadar
+  - type: QlippothContainmentConsole
+    title: Q-Gate Tracker Console
+    status: Dimensional instability tracker ready.
+  - type: ActivatableUI
+    key: enum.QGateRadarUiKey.Key
+  - type: UserInterface
+    interfaces:
+      enum.QGateRadarUiKey.Key:
+        type: QlippothContainmentConsoleBoundUserInterface
+  - type: Sprite
+    sprite: Structures/Machines/computers.rsi
+    layers:
+    - map: ["computerLayerBody"]
+      state: computer
+    - map: ["computerLayerScreen"]
+      state: generic
+
+# Qlippoth Research Console (Science)
+- type: entity
+  id: ComputerQlippothResearch
+  parent: BaseComputer
+  name: Qlippoth Research Console
+  description: Remote scanning and data extraction console for contained Qlippoth entities.
+  components:
+  - type: QlippothResearchConsole
+  - type: Sprite
+    sprite: Structures/Machines/computers.rsi
+    layers:
+    - map: ["computerLayerBody"]
+      state: computer
+    - map: ["computerLayerScreen"]
+      state: generic
+  - type: UserInterface
+    interfaces:
+        enum.QlippothResearchConsoleUiKey.Key:
+          type: QlippothResearchConsoleBoundUserInterface
+  - type: ActivatableUI
+    singleUser: true
+    key: enum.QlippothResearchConsoleUiKey.Key
+
+# CentCom Market Console (Command)
+- type: entity
+  id: ComputerQlippothMarket
+  parent: BaseComputer
+  name: CentCom Containment Auction Console
+  description: Purchase secured Qlippoth entities from CentCom for containment and research.
+  components:
+  - type: ActivatableUI
+    key: enum.QlippothMarketConsoleUiKey.Key
+  - type: UserInterface
+    interfaces:
+      enum.QlippothMarketConsoleUiKey.Key:
+        type: QlippothContainmentConsoleBoundUserInterface
+  - type: QlippothContainmentConsole
+    title: CentCom Containment Auction
+    status: Auction terminal ready.
+  - type: Sprite
+    sprite: Structures/Machines/computers.rsi
+    layers:
+    - map: ["computerLayerBody"]
+      state: computer
+    - map: ["computerLayerScreen"]
+      state: generic
+  - type: AccessReader
+    access:
+    - - Captain
+    - - ResearchDirector
+
+# Containment Blueprint Console (Engineering)
+- type: entity
+  id: ComputerContainmentBlueprint
+  parent: BaseComputer
+  name: Containment Blueprint Console
+  description: Manages the construction of containment chambers in the Containment Dimension.
+  components:
+  - type: ActivatableUI
+    key: enum.ContainmentBlueprintConsoleUiKey.Key
+  - type: UserInterface
+    interfaces:
+      enum.ContainmentBlueprintConsoleUiKey.Key:
+        type: QlippothContainmentConsoleBoundUserInterface
+  - type: QlippothContainmentConsole
+    title: Containment Blueprint Console
+    status: Engineering blueprint terminal ready.
+  - type: Sprite
+    sprite: Structures/Machines/computers.rsi
+    layers:
+    - map: ["computerLayerBody"]
+      state: computer
+    - map: ["computerLayerScreen"]
+      state: generic
+
+# Containment Chamber
+- type: entity
+  id: ContainmentChamberMarker
+  name: Containment Chamber
+  description: A reinforced containment cell for housing Qlippoth entities.
+  components:
+  - type: Transform
+  - type: ContainmentChamber
+  - type: Sprite
+    sprite: Qlippoth/ContainmentChamber.rsi
+    layers:
+    - state: ContainmentChamber
+      map: ["base"]
+  - type: Damageable
+    damageContainer: Inorganic
+
+# Active at round start in the Command sector. Only the Captain and RD may enter.
+- type: entity
+  id: CommandStarterContainmentChamber
+  parent: ContainmentChamberMarker
+  name: Command Starter Qlippoth Chamber
+  components:
+  - type: ContainmentChamber
+    chamberId: command-starter
+    sector: Command
+    isBuilt: true
+  - type: AccessReader
+    access:
+    - - Captain
+    - - ResearchDirector
+
+# Transport Capsule
+- type: entity
+  id: CapsuleQlippothTransport
+  name: CentCom Transport Capsule
+  description: A reinforced containment capsule shipped from CentCom. Contains a secured Qlippoth entity. Handle with extreme caution.
+  components:
+  - type: Transform
+  - type: QlippothCapsule
+  - type: Sprite
+    sprite: Qlippoth/QlippothTransport.rsi
+    layers:
+    - state: QlippothTransport
+      map: ["base"]
+  - type: Physics
+    bodyType: Dynamic
+  - type: Fixtures
+    fixtures:
+      fix1:
+        shape:
+          !type:PhysShapeAabb
+          bounds: "-0.4,-0.4,0.4,0.4"
+        density: 200
+        mask:
+        - MachineMask
+        layer:
+        - MachineLayer
+  - type: Pullable
+  - type: Damageable
+    damageContainer: Inorganic
+    damageModifierSet: Metallic
+  - type: Destructible
+    thresholds:
+    - trigger:
+        !type:DamageTrigger
+        damage: 150
+      behaviors:
+      - !type:DoActsBehavior
+        acts: ["Destruction"]
+
+# Containment Dimension Portal (Department Portals)
+- type: entity
+  id: ContainmentDimensionPortal
+  name: Containment Dimension Portal
+  description: A stable dimensional portal leading to the station's Qlippoth Containment Dimension.
+  components:
+  - type: ContainmentPortal
+  - type: Transform
+    anchored: true
+  - type: Clickable
+  - type: InteractionOutline
+  - type: Physics
+    bodyType: Static
+  - type: Fixtures
+    fixtures:
+      containmentPortalFixture:
+        shape:
+          !type:PhysShapeAabb
+          bounds: "-0.45,-0.45,0.45,0.45"
+        mask:
+        - FullTileMask
+        layer:
+        - WallLayer
+        hard: false
+  - type: Sprite
+    sprite: Qlippoth/QlippothContainment.rsi
+    layers:
+    - state: QlippothContainment
+      map: ["base"]
+  - type: PointLight
+    radius: 4
+    energy: 2
+    color: "#00BFFF"
+  - type: AmbientSound
+    range: 5
+    volume: -6
+    sound: /Audio/Ambience/anomaly_hum.ogg
+
+- type: entity
+  id: QlippothContainmentLight
+  name: Containment sector light
+  components:
+  - type: Transform
+  - type: PointLight
+    radius: 10
+    energy: 3
+    color: "#B9D8FF"
+
+- type: entity
+  id: DevStationContainmentPortal
+  parent: ContainmentDimensionPortal
+  name: Development Station Containment Portal
+  description: A developer-only portal to the Qlippoth Containment Dimension.
+  components:
+  - type: AccessReader
+    access:
+    - - Command
+
+- type: entity
+  id: ContainmentDimensionExitPortal
+  parent: ContainmentDimensionPortal
+  name: Containment Dimension Exit Portal
+  description: A portal leading back to the station.
+  components:
+  - type: ContainmentPortal
+    isExitPortal: true

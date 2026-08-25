@@ -1,0 +1,179 @@
+# Q-Gate Entity Prototypes
+# Phase 1 through Phase 5 Q-Gate portal entities
+
+- type: entity
+  id: BaseQGate
+  abstract: true
+  name: Q-Gate
+  description: A dimensional rift leading to an anomalous pocket dimension.
+  components:
+  - type: Transform
+    anchored: true
+  - type: Clickable
+  - type: InteractionOutline
+  - type: Physics
+    bodyType: Static
+  - type: Fixtures
+    fixtures:
+      qgateFixture:
+        shape:
+          !type:PhysShapeAabb
+          bounds: "-0.45,-0.45,0.45,0.45"
+        mask:
+        - FullTileMask
+        layer:
+        - WallLayer
+        hard: false
+  - type: QGate
+  - type: Sprite
+    sprite: Qlippoth/Q-gate.rsi
+    layers:
+    - state: qgate
+      map: ["base"]
+  - type: PointLight
+    radius: 6
+    energy: 3
+    color: "#8B00FF"
+  - type: Appearance
+  - type: AmbientSound
+    range: 8
+    volume: -4
+    sound: /Audio/Ambience/anomaly_hum.ogg
+
+- type: entity
+  id: QGateObjectiveBase
+  abstract: true
+  parent: BaseStructure
+  components:
+  - type: QGateDungeonObjective
+  - type: InteractionOutline
+  - type: Sprite
+    drawdepth: SmallObjects
+    sprite: Structures/Wallmounts/switch.rsi
+    state: dead
+  - type: PointLight
+    radius: 1.5
+    energy: 1.5
+    color: "#F0C75E"
+
+- type: entity
+  id: QGateObjectiveStabilize
+  parent: QGateObjectiveBase
+  name: Rift Stabilizer
+  description: Stabilizes the active Q-Gate rift.
+  components:
+  - type: QGateDungeonObjective
+    objectiveType: StabilizeRift
+    actions:
+    - !type:QGateObjectiveAction
+      actionName: Stabilize Rift
+      initiation: !type:QGateObjectiveInteractInitiation
+      results:
+      - !type:PlayQGateObjectiveSoundResult
+        soundPath: /Audio/Machines/airlock_open.ogg
+      - !type:CompleteQGateObjectiveResult
+
+- type: entity
+  id: QGateObjectiveData
+  parent: QGateObjectiveBase
+  name: Anomaly Data Extractor
+  description: Extracts the anomaly data required to secure the Qlippoth.
+  components:
+  - type: QGateDungeonObjective
+    objectiveType: ExtractAnomalyData
+    actions:
+    - !type:QGateObjectiveAction
+      actionName: Extract Anomaly Data
+      initiation: !type:QGateObjectiveInteractInitiation
+      results:
+      - !type:PlayQGateObjectiveSoundResult
+        soundPath: /Audio/Machines/airlock_open.ogg
+      - !type:CompleteQGateObjectiveResult
+
+- type: entity
+  id: QGateObjectiveSeal
+  parent: QGateObjectiveBase
+  name: Containment Seal Control
+  description: Seals the containment field around the Qlippoth.
+  components:
+  - type: QGateDungeonObjective
+    objectiveType: SealContainment
+    actions:
+    - !type:QGateObjectiveAction
+      actionName: Seal Containment
+      initiation: !type:QGateObjectiveInteractInitiation
+      results:
+      - !type:PlayQGateObjectiveSoundResult
+        soundPath: /Audio/Machines/airlock_open.ogg
+      - !type:CompleteQGateObjectiveResult
+
+- type: entity
+  id: QGatePhase1Rift
+  parent: BaseQGate
+  name: Q-Gate (Phase 1 - Rift)
+  description: A minor dimensional fracture. Low threat level.
+  components:
+  - type: QGate
+    phase: Phase1Rift
+    arrivalEta: 600
+    duration: 900 # 15 minutes
+  - type: PointLight
+    color: "#CCCCFF"
+    energy: 2
+
+- type: entity
+  id: QGatePhase2Verge
+  parent: BaseQGate
+  name: Q-Gate (Phase 2 - Verge)
+  description: A dimensional gate on the verge of instability. Moderate threat.
+  components:
+  - type: QGate
+    phase: Phase2Verge
+    arrivalEta: 600
+    duration: 720 # 12 minutes
+  - type: PointLight
+    color: "#4488FF"
+    energy: 3
+
+- type: entity
+  id: QGatePhase3Eclipse
+  parent: BaseQGate
+  name: Q-Gate (Phase 3 - Eclipse)
+  description: A high-threat dimensional rift emitting mental interference patterns.
+  components:
+  - type: QGate
+    phase: Phase3Eclipse
+    arrivalEta: 600
+    duration: 600 # 10 minutes
+  - type: PointLight
+    color: "#FFCC00"
+    energy: 4
+
+- type: entity
+  id: QGatePhase4Abyss
+  parent: BaseQGate
+  name: Q-Gate (Phase 4 - Abyss)
+  description: A severely dangerous rift radiating deep corruption. Extreme caution required.
+  components:
+  - type: QGate
+    phase: Phase4Abyss
+    arrivalEta: 600
+    duration: 480 # 8 minutes
+  - type: PointLight
+    color: "#FF6600"
+    energy: 5
+
+- type: entity
+  id: QGatePhase5Horizon
+  parent: BaseQGate
+  name: Q-Gate (Phase 5 - Horizon)
+  description: A cataclysmic-class rift. If breached, reality itself may collapse.
+  components:
+  - type: QGate
+    phase: Phase5Horizon
+    arrivalEta: 600
+    duration: 360 # 6 minutes
+  - type: PointLight
+    color: "#FF0000"
+    energy: 8
+    radius: 10

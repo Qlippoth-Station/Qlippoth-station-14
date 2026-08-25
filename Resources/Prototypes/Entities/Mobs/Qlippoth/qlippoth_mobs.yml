@@ -1,0 +1,181 @@
+# Qlippoth Mob Entity Prototypes
+
+- type: entity
+  id: MobQlippothBase
+  abstract: true
+  name: Qlippoth
+  description: An anomalous entity from beyond dimensional boundaries.
+  components:
+  - type: Transform
+  - type: Qlippoth
+  - type: Sprite
+    sprite: Qlippoth/king_in_yellow.rsi
+    layers:
+    - state: front
+      map: ["base"]
+  - type: MobState
+  - type: MobThresholds
+    thresholds:
+      0: Alive
+      100: Dead
+  - type: DamageStateVisuals
+    states:
+      Alive:
+        Base: front
+      Dead:
+        Base: front
+  - type: Physics
+    bodyType: KinematicController
+  - type: Fixtures
+    fixtures:
+      fix1:
+        shape:
+          !type:PhysShapeCircle
+          radius: 0.35
+        density: 100
+        mask:
+        - MobMask
+        layer:
+        - MobLayer
+  - type: PointLight
+    radius: 4
+    energy: 2
+    color: "#8B00FF"
+
+- type: entity
+  id: MobQlippothPhase1
+  parent: MobQlippothBase
+  name: Minor Qlippoth
+  description: A low-threat dimensional anomaly. Relatively docile but should be monitored.
+  components:
+  - type: Qlippoth
+    phase: Phase1Rift
+    qlippothCounter: 3
+    maxCounter: 3
+  - type: PointLight
+    color: "#CCCCFF"
+    energy: 1
+
+- type: entity
+  id: MobQlippothTest
+  parent: MobQlippothBase
+  name: Test Qlippoth - King in Yellow
+  description: A controlled Qlippoth used to test phase, movement, presence, sanity and action systems.
+  components:
+  - type: Clickable
+  - type: InteractionOutline
+  - type: Qlippoth
+    phase: Phase3Eclipse
+    qlippothCounter: 7
+    maxCounter: 7
+  - type: QlippothPresence
+    presenceType: Object
+    objectSize: Large
+  - type: QlippothMovement
+    movementType: Animated
+  - type: QlippothActions
+    actions:
+    - !type:QlippothAction
+      actionName: testPullResponse
+      initiation: !type:OnPullInitiation
+      results:
+      - !type:PlaySoundResult
+        soundPath: /Audio/Qlippoth/qlippoth.ogg
+        volume: 3
+  - type: PointLight
+    color: "#FFD54A"
+    energy: 4
+    radius: 5
+
+- type: entity
+  id: MobQlippothPhase2
+  parent: MobQlippothBase
+  name: Verge Qlippoth
+  description: An entity on the edge of anomaly threshold. Displays increasing energy signatures.
+  components:
+  - type: Qlippoth
+    phase: Phase2Verge
+    qlippothCounter: 5
+    maxCounter: 5
+  - type: MobThresholds
+    thresholds:
+      0: Alive
+      180: Dead
+  - type: PointLight
+    color: "#4488FF"
+    energy: 2
+
+- type: entity
+  id: MobQlippothPhase3
+  parent: MobQlippothBase
+  name: Eclipse Qlippoth
+  description: A high-threat entity that emits mental interference patterns.
+  components:
+  - type: Qlippoth
+    phase: Phase3Eclipse
+    qlippothCounter: 7
+    maxCounter: 7
+  - type: MobThresholds
+    thresholds:
+      0: Alive
+      300: Dead
+  - type: PointLight
+    color: "#FFCC00"
+    energy: 3
+
+- type: entity
+  id: MobQlippothPhase4
+  parent: MobQlippothBase
+  name: Abyss Qlippoth
+  description: A severely dangerous entity radiating deep dimensional corruption.
+  components:
+  - type: Qlippoth
+    phase: Phase4Abyss
+    qlippothCounter: 10
+    maxCounter: 10
+  - type: MobThresholds
+    thresholds:
+      0: Alive
+      500: Dead
+  - type: PointLight
+    color: "#FF6600"
+    energy: 5
+  - type: QlippothCorruptionProfile
+    applyEffects:
+    - !type:SpawnCorruptionEffect
+      prototype: EffectVoidBlink
+    - !type:PopupCorruptionEffect
+      message: qlippoth-corruption-applied
+    pulseEffects:
+    - !type:SpawnCorruptionEffect
+      prototype: EffectVoidBlink
+
+- type: entity
+  id: MobQlippothPhase5
+  parent: MobQlippothBase
+  name: Horizon Qlippoth
+  description: A cataclysmic-class entity capable of warping reality itself.
+  components:
+  - type: Qlippoth
+    phase: Phase5Horizon
+    qlippothCounter: 15
+    maxCounter: 15
+  - type: MobThresholds
+    thresholds:
+      0: Alive
+      800: Dead
+  - type: PointLight
+    color: "#FF0000"
+    energy: 8
+    radius: 8
+  - type: QlippothCorruptionProfile
+    applyEffects:
+    - !type:SpawnCorruptionEffect
+      prototype: EffectVoidBlink
+    - !type:PopupCorruptionEffect
+      message: qlippoth-corruption-applied
+    pulseEffects:
+    - !type:SpawnCorruptionEffect
+      prototype: EffectVoidBlink
+    - !type:DamageSanityCorruptionEffect
+      amount: 5

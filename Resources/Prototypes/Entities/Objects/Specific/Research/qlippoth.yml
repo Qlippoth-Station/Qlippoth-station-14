@@ -1,0 +1,36 @@
+- type: entity
+  parent: BaseItem
+  id: QlippothBreachSealDevice
+  name: Qlippoth breach seal device
+  description: A Science-built device intended to seal a breached Q-Gate rift.
+  components:
+  - type: Sprite
+    sprite: Objects/Specific/Xenoarchaeology/node_scanner.rsi
+    state: icon
+  - type: Item
+    size: Small
+  - type: QlippothBreachSealDevice
+    sealDuration: 5
+
+- type: entity
+  parent: BaseBlueprint
+  id: BlueprintContainmentChamber
+  name: containment chamber blueprint
+  description: A Science-approved blueprint for a Qlippoth containment chamber construction kit.
+  components:
+  - type: Blueprint
+    providedRecipes:
+    - ContainmentChamberConstructionKit
+
+- type: entity
+  parent: BaseItem
+  id: ContainmentChamberConstructionKit
+  name: containment chamber construction kit
+  description: A construction kit produced from a containment chamber blueprint.
+  components:
+  - type: Sprite
+    sprite: Objects/Tools/blueprint.rsi
+    state: icon
+  - type: Item
+    size: Normal
+  - type: QlippothChamberConstructionKit
