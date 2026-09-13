@@ -133,13 +133,6 @@ public sealed class QlippothTransportSystem : EntitySystem
         chamber.ContainedQlippoth = qlippothUid;
         Dirty(chamberUid, chamber);
 
-        // Update Qlippoth with its chamber reference
-        if (TryComp<QlippothComponent>(qlippothUid, out var qlippoth))
-        {
-            qlippoth.ContainmentChamberId = chamber.ChamberId;
-            Dirty(qlippothUid, qlippoth);
-        }
-
         // Destroy the capsule
         QueueDel(capsuleUid);
 

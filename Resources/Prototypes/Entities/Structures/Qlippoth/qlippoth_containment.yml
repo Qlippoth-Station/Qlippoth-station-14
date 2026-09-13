@@ -207,7 +207,7 @@
   - type: AmbientSound
     range: 5
     volume: -6
-    sound: /Audio/Ambience/anomaly_hum.ogg
+    sound: /Audio/Qlippoth/portal-default.ogg
 
 - type: entity
   id: QlippothContainmentLight

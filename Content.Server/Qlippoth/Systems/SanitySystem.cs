@@ -1,48 +1,24 @@
-using Content.Shared.Qlippoth;
 using Content.Shared.Qlippoth.Components;
-using Robust.Shared.Timing;
 
 namespace Content.Server.Qlippoth.Systems;
 
+/// <summary>
+/// The crew Sanity stat. Nothing here decides *when* sanity drops; that is the Qlippoth's own
+/// action list (e.g. ProximityInitiation + DamageSanityResult). This system only applies the numbers.
+/// </summary>
 public sealed class SanitySystem : EntitySystem
 {
-    [Dependency] private readonly IGameTiming _timing = default!;
-
-    public override void Initialize()
+    /// <summary>Lower sanity by a flat amount. With scaled = true the target's DrainMultiplier is applied (auras use this, direct costs don't).</summary>
+    public void DamageSanity(EntityUid uid, float amount, bool scaled = false, SanityComponent? sanity = null)
     {
-        base.Initialize();
-    }
+        if (!Resolve(uid, ref sanity, false))
+            return;
 
-    public override void Update(float frameTime)
-    {
-        base.Update(frameTime);
+        if (scaled)
+            amount *= sanity.DrainMultiplier;
 
-        var query = EntityQueryEnumerator<SanityComponent, TransformComponent>();
-        var qlippothQuery = EntityQuery<QlippothComponent, TransformComponent>();
-
-        while (query.MoveNext(out var uid, out var sanity, out var xform))
-        {
-            if (sanity.CurrentSanity <= 0)
-                continue;
-
-            // Check proximity to Phase 3+ Qlippoths
-            foreach (var (qlippoth, qXform) in qlippothQuery)
-            {
-                if (xform.MapID != qXform.MapID)
-                    continue;
-
-                if (qlippoth.Phase < QGatePhase.Phase3Eclipse)
-                    continue;
-
-                var dist = (xform.Coordinates.Position - qXform.Coordinates.Position).Length();
-                if (dist < 8.0f)
-                {
-                    var drain = frameTime * (int)qlippoth.Phase * 2f * sanity.DrainMultiplier;
-                    sanity.CurrentSanity = MathF.Max(0f, sanity.CurrentSanity - drain);
-                    Dirty(uid, sanity);
-                }
-            }
-        }
+        sanity.CurrentSanity = MathF.Max(0f, sanity.CurrentSanity - amount);
+        Dirty(uid, sanity);
     }
 
     public void RestoreSanity(EntityUid uid, float amount, SanityComponent? sanity = null)

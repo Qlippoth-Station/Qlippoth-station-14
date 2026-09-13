@@ -1,42 +1,61 @@
+using System.Linq;
+using System.Numerics;
 using Content.Server.Chat.Systems;
-using Content.Shared.Qlippoth;
-using Content.Shared.Qlippoth.Components;
-using Content.Shared.Interaction;
-using Content.Shared.DoAfter;
 using Content.Server.Popups;
 using Content.Shared.CCVar;
+using Content.Shared.DoAfter;
 using Content.Shared.Eye;
+using Content.Shared.Interaction;
+using Content.Shared.Maps;
+using Content.Shared.Qlippoth;
+using Content.Shared.Qlippoth.Components;
+using Robust.Server.GameObjects;
+using Robust.Shared.Audio;
+using Robust.Shared.Audio.Systems;
+using Robust.Shared.Configuration;
 using Robust.Shared.Map;
+using Robust.Shared.Map.Components;
 using Robust.Shared.Player;
 using Robust.Shared.Prototypes;
 using Robust.Shared.Random;
 using Robust.Shared.Timing;
-using Robust.Shared.Configuration;
-using Robust.Server.GameObjects;
-using System.Linq;
 
 namespace Content.Server.Qlippoth.Systems;
 
+/// <summary>
+/// Everything on the gate side of the game loop:
+///  - spawning gates and rolling their phase,
+///  - opening the rift: pick a Qlippoth for the gate phase (QlippothSystem pool), build that Qlippoth's dungeon, spawn it inside,
+///  - the objectives inside the dungeon,
+///  - breach (Qlippoth escapes to the station), clear (Qlippoth goes to the market), seal, evacuation.
+/// Gates only know phases; which Qlippoth fits which phase is decided by the Qlippoths themselves (QlippothComponent.GatePhases).
+/// </summary>
 public sealed partial class QGateSystem : EntitySystem
 {
     [Dependency] private ChatSystem _chatSystem = default!;
     [Dependency] private IGameTiming _timing = default!;
     [Dependency] private ContainmentDimensionSystem _containmentDim = default!;
     [Dependency] private QlippothMarketSystem _market = default!;
-    [Dependency] private QGateDungeonSystem _dungeons = default!;
+    [Dependency] private QlippothSystem _qlippoths = default!;
     [Dependency] private ContainmentPortalSystem _portals = default!;
     [Dependency] private SharedTransformSystem _transform = default!;
     [Dependency] private IRobustRandom _random = default!;
     [Dependency] private IMapManager _mapManager = default!;
+    [Dependency] private SharedMapSystem _maps = default!;
+    [Dependency] private ITileDefinitionManager _tileDefinitions = default!;
     [Dependency] private VisibilitySystem _visibility = default!;
     [Dependency] private IConfigurationManager _cfg = default!;
     [Dependency] private SharedDoAfterSystem _doAfter = default!;
     [Dependency] private PopupSystem _popup = default!;
+    [Dependency] private SharedAudioSystem _audio = default!;
 
-    private readonly Dictionary<EntityUid, QGateDungeonSystem.RiftDungeon> _dungeonsByGate = new();
+    private readonly Dictionary<EntityUid, RiftDungeon> _dungeonsByGate = new();
     private readonly Dictionary<EntityUid, EntityUid> _returnPortalsByGate = new();
     private readonly Dictionary<EntityUid, List<EntityUid>> _breachEffectsByGate = new();
     private TimeSpan _nextAutomaticSpawn;
+
+    /// <summary>A live rift dimension. Qlippoth is null if no prototype fit the gate phase.</summary>
+    public readonly record struct RiftDungeon(MapId MapId, MapCoordinates Entry, EntityUid? Qlippoth);
 
     public override void Initialize()
     {
@@ -47,6 +66,8 @@ public sealed partial class QGateSystem : EntitySystem
         SubscribeLocalEvent<QlippothBreachSealDeviceComponent, AfterInteractEvent>(OnBreachSealDeviceUsed);
         SubscribeLocalEvent<QlippothBreachSealDeviceComponent, ActivateInWorldEvent>(OnBreachSealDeviceActivated);
         SubscribeLocalEvent<QlippothBreachSealDeviceComponent, SealQlippothGateDoAfterEvent>(OnBreachSealCompleted);
+        SubscribeLocalEvent<QGateDungeonObjectiveComponent, InteractHandEvent>(OnObjectiveInteractHand);
+        SubscribeLocalEvent<QGateDungeonObjectiveComponent, ActivateInWorldEvent>(OnObjectiveActivateInWorld);
         _nextAutomaticSpawn = _timing.CurTime + TimeSpan.FromSeconds(_cfg.GetCVar(CCVars.QlippothGateSpawnInterval));
     }
 
@@ -137,6 +158,7 @@ public sealed partial class QGateSystem : EntitySystem
         UpdateRadarConsoles(curTime);
     }
 
+    #region gate spawning
     private void TrySpawnAutomaticGate()
     {
         var activeGates = 0;
@@ -225,7 +247,8 @@ public sealed partial class QGateSystem : EntitySystem
         _visibility.RefreshVisibility(uid, visibility);
     }
 
-    private static string GetGatePrototype(QGatePhase phase)
+    /// <summary>Gate entity prototype for a phase (Resources/Prototypes/Entities/Structures/Qlippoth/qgates.yml).</summary>
+    public static string GetGatePrototype(QGatePhase phase)
     {
         return phase switch
         {
@@ -237,6 +260,21 @@ public sealed partial class QGateSystem : EntitySystem
         };
     }
 
+    public string GetPhaseName(QGatePhase phase)
+    {
+        return phase switch
+        {
+            QGatePhase.Phase1Rift => Loc.GetString("qgate-phase-rift"),
+            QGatePhase.Phase2Verge => Loc.GetString("qgate-phase-verge"),
+            QGatePhase.Phase3Eclipse => Loc.GetString("qgate-phase-eclipse"),
+            QGatePhase.Phase4Abyss => Loc.GetString("qgate-phase-abyss"),
+            QGatePhase.Phase5Horizon => Loc.GetString("qgate-phase-horizon"),
+            _ => "Unknown Phase"
+        };
+    }
+    #endregion
+
+    #region radar
     private void UpdateRadarConsoles(TimeSpan curTime)
     {
         var gates = new List<QGateComponent>();
@@ -296,7 +334,9 @@ public sealed partial class QGateSystem : EntitySystem
 
         return lines.Count == 0 ? "No active Q-Gates detected." : string.Join("\n", lines);
     }
+    #endregion
 
+    #region rift dungeon
     private void OpenRift(EntityUid uid, QGateComponent qgate)
     {
         if (qgate.RiftOpened)
@@ -305,20 +345,81 @@ public sealed partial class QGateSystem : EntitySystem
         qgate.RiftOpened = true;
         qgate.RiftOpenedAt = _timing.CurTime;
         ShowGate(uid);
-        _dungeonsByGate[uid] = _dungeons.CreateRiftDungeon(qgate.Phase, uid);
+
+        // The gate only knows its phase. Ask the Qlippoth pool which Qlippoth comes through, then build *that* Qlippoth's dungeon.
+        QlippothDungeon dungeonDefinition = new ArenaDungeon();
+        if (_qlippoths.TryPickQlippoth(qgate.Phase, out var prototype))
+        {
+            qgate.QlippothPrototype = prototype;
+            dungeonDefinition = _qlippoths.GetPrototypeData(prototype)?.Dungeon ?? dungeonDefinition;
+        }
+        else
+        {
+            Log.Warning($"No Qlippoth prototype lists gate phase {qgate.Phase} in its gatePhases; rift at {qgate.LocationName} opens empty.");
+        }
+
+        var (dungeon, objectiveCount) = CreateRiftDungeon(dungeonDefinition, qgate.QlippothPrototype, uid);
+        _dungeonsByGate[uid] = dungeon;
+        if (objectiveCount > 0)
+            qgate.RequiredObjectives = objectiveCount;
         Dirty(uid, qgate);
     }
 
-    public void ReportObjectiveCompleted(EntityUid gateUid)
+    private (RiftDungeon Dungeon, int ObjectiveCount) CreateRiftDungeon(QlippothDungeon definition, EntProtoId? qlippothPrototype, EntityUid gate)
     {
-        if (!TryComp<QGateComponent>(gateUid, out var qgate) || qgate.IsBreached || qgate.ObjectiveCompleted)
-            return;
+        var mapId = _mapManager.CreateMap();
+        var gridEntity = _mapManager.CreateGridEntity(mapId);
+        var gridUid = gridEntity.Owner;
 
-        qgate.CompletedObjectives++;
-        if (qgate.CompletedObjectives >= qgate.RequiredObjectives)
-            TriggerCleared(gateUid, qgate);
-        else
-            Dirty(gateUid, qgate);
+        var layout = definition.Build(this, gridUid, gridEntity.Comp, gate);
+
+        EntityUid? qlippoth = null;
+        if (qlippothPrototype is { } prototype)
+            qlippoth = Spawn(prototype, new EntityCoordinates(gridUid, layout.QlippothSpot));
+
+        var entry = new MapCoordinates(layout.Entry, mapId);
+        return (new RiftDungeon(mapId, entry, qlippoth), layout.ObjectiveCount);
+    }
+
+    // Helpers QlippothDungeon implementations build with (they are plain data classes and cannot spawn on their own).
+
+    public void PlaceFloor(EntityUid gridUid, MapGridComponent grid, string tileId, List<Vector2i> positions)
+    {
+        var tile = new Tile(_tileDefinitions[tileId].TileId);
+        var tiles = new List<(Vector2i Index, Tile Tile)>(positions.Count);
+        foreach (var position in positions)
+            tiles.Add((position, tile));
+        _maps.SetTiles(gridUid, grid, tiles);
+    }
+
+    public EntityUid PlaceEntity(EntityUid gridUid, string prototype, Vector2 position)
+    {
+        return Spawn(prototype, new EntityCoordinates(gridUid, position));
+    }
+
+    public EntityUid PlaceObjective(EntityUid gridUid, EntityUid gate, string prototype, Vector2 position)
+    {
+        var objective = Spawn(prototype, new EntityCoordinates(gridUid, position));
+        var component = EnsureComp<QGateDungeonObjectiveComponent>(objective);
+        component.Gate = gate;
+        Dirty(objective, component);
+        return objective;
+    }
+
+    private void DestroyRiftDungeon(RiftDungeon dungeon)
+    {
+        if (_mapManager.MapExists(dungeon.MapId))
+            _mapManager.DeleteMap(dungeon.MapId);
+    }
+
+    private void EvacuateDungeon(MapId dungeonMap, MapCoordinates exit)
+    {
+        var players = EntityQueryEnumerator<ActorComponent, TransformComponent>();
+        while (players.MoveNext(out var player, out _, out var xform))
+        {
+            if (xform.MapID == dungeonMap)
+                _transform.SetMapCoordinates(player, exit);
+        }
     }
 
     private void OnAfterInteract(EntityUid uid, QGateComponent qgate, ref AfterInteractEvent args)
@@ -344,7 +445,78 @@ public sealed partial class QGateSystem : EntitySystem
         _transform.SetMapCoordinates(args.User, dungeon.Entry);
         args.Handled = true;
     }
+    #endregion
 
+    #region objectives
+    private void OnObjectiveInteractHand(EntityUid uid, QGateDungeonObjectiveComponent objective, ref InteractHandEvent args)
+    {
+        if (args.Handled || objective.Completed || !Exists(objective.Gate))
+            return;
+
+        ExecuteObjectiveActions(uid, objective, args.User);
+        args.Handled = true;
+    }
+
+    private void OnObjectiveActivateInWorld(EntityUid uid, QGateDungeonObjectiveComponent objective, ActivateInWorldEvent args)
+    {
+        if (args.Handled || objective.Completed || !Exists(objective.Gate))
+            return;
+
+        ExecuteObjectiveActions(uid, objective, args.User);
+        args.Handled = true;
+    }
+
+    private void ExecuteObjectiveActions(EntityUid uid, QGateDungeonObjectiveComponent objective, EntityUid user)
+    {
+        foreach (var action in objective.Actions)
+        {
+            if (action.Initiation is not QGateObjectiveInteractInitiation)
+                continue;
+
+            foreach (var result in action.Results)
+            {
+                switch (result)
+                {
+                    case CompleteQGateObjectiveResult:
+                        CompleteObjective(uid, user);
+                        break;
+                    case PlayQGateObjectiveSoundResult sound:
+                        _audio.PlayPvs(new SoundPathSpecifier(sound.SoundPath), uid, AudioParams.Default.WithVolume(sound.Volume));
+                        break;
+                    case SpawnQGateObjectiveEntityResult spawn:
+                        var coordinates = Transform(uid).Coordinates;
+                        for (var i = 0; i < spawn.Count; i++)
+                            Spawn(spawn.Prototype, coordinates);
+                        break;
+                }
+            }
+        }
+    }
+
+    public void CompleteObjective(EntityUid uid, EntityUid user)
+    {
+        if (!TryComp<QGateDungeonObjectiveComponent>(uid, out var objective) || objective.Completed)
+            return;
+
+        objective.Completed = true;
+        Dirty(uid, objective);
+        ReportObjectiveCompleted(objective.Gate);
+    }
+
+    public void ReportObjectiveCompleted(EntityUid gateUid)
+    {
+        if (!TryComp<QGateComponent>(gateUid, out var qgate) || qgate.IsBreached || qgate.ObjectiveCompleted)
+            return;
+
+        qgate.CompletedObjectives++;
+        if (qgate.CompletedObjectives >= qgate.RequiredObjectives)
+            TriggerCleared(gateUid, qgate);
+        else
+            Dirty(gateUid, qgate);
+    }
+    #endregion
+
+    #region breach / clear / seal
     private void OnBreachSealDeviceUsed(EntityUid uid, QlippothBreachSealDeviceComponent component,
         AfterInteractEvent args)
     {
@@ -399,11 +571,10 @@ public sealed partial class QGateSystem : EntitySystem
         if (!TryComp<QGateComponent>(target, out var qgate) || !qgate.IsBreached)
             return false;
 
-        if (_dungeonsByGate.TryGetValue(target, out var dungeon))
+        if (_dungeonsByGate.Remove(target, out var dungeon))
         {
             EvacuateDungeon(dungeon.MapId, _transform.GetMapCoordinates(target));
-            _dungeons.CloseRift(dungeon);
-            _dungeonsByGate.Remove(target);
+            DestroyRiftDungeon(dungeon);
         }
 
         if (_returnPortalsByGate.Remove(target, out var returnPortal))
@@ -422,31 +593,34 @@ public sealed partial class QGateSystem : EntitySystem
         return true;
     }
 
+    /// <summary>Time ran out: the rift collapses and the Qlippoth that was inside appears on the station.</summary>
     public void TriggerBreach(EntityUid uid, QGateComponent? qgate = null)
     {
         if (!Resolve(uid, ref qgate) || qgate.IsBreached || qgate.IsCleared)
             return;
 
         qgate.IsBreached = true;
-        if (_dungeonsByGate.TryGetValue(uid, out var dungeon))
+        if (_dungeonsByGate.Remove(uid, out var dungeon))
         {
             EvacuateDungeon(dungeon.MapId, _transform.GetMapCoordinates(uid));
-            _dungeons.CloseRift(dungeon);
-            _dungeonsByGate.Remove(uid);
+            DestroyRiftDungeon(dungeon);
         }
 
-        Spawn(GetQlippothPrototype(qgate.Phase), Transform(uid).Coordinates);
-        var breachEffects = new List<EntityUid>
+        var coordinates = Transform(uid).Coordinates;
+        if (qgate.QlippothPrototype is { } prototype)
+            Spawn(prototype, coordinates);
+
+        _breachEffectsByGate[uid] = new List<EntityUid>
         {
-            Spawn("EffectSparks", Transform(uid).Coordinates),
-            Spawn("EffectVoidBlink", Transform(uid).Coordinates)
+            Spawn("EffectSparks", coordinates),
+            Spawn("EffectVoidBlink", coordinates)
         };
-        _breachEffectsByGate[uid] = breachEffects;
         Dirty(uid, qgate);
         var breachMsg = Loc.GetString("qgate-announcement-breach", ("location", qgate.LocationName));
         _chatSystem.DispatchGlobalAnnouncement(breachMsg, "CentCom Emergency Alert", playSound: true, colorOverride: Color.FromHex("#DC143C"));
     }
 
+    /// <summary>All objectives done: open the way back, then CloseRift() sells the Qlippoth to the market.</summary>
     public void TriggerCleared(EntityUid uid, QGateComponent? qgate = null)
     {
         if (!Resolve(uid, ref qgate) || qgate.IsCleared || qgate.IsBreached)
@@ -471,55 +645,19 @@ public sealed partial class QGateSystem : EntitySystem
 
     private void CloseRift(EntityUid uid, QGateComponent qgate)
     {
-        if (_dungeonsByGate.TryGetValue(uid, out var dungeon))
+        if (_dungeonsByGate.Remove(uid, out var dungeon))
         {
-            var exit = _transform.GetMapCoordinates(uid);
-            EvacuateDungeon(dungeon.MapId, exit);
-            _dungeons.CloseRift(dungeon);
-            _dungeonsByGate.Remove(uid);
+            EvacuateDungeon(dungeon.MapId, _transform.GetMapCoordinates(uid));
+            DestroyRiftDungeon(dungeon);
         }
 
         if (_returnPortalsByGate.Remove(uid, out var returnPortal))
             QueueDel(returnPortal);
 
         qgate.PortalClosing = false;
-        _market.AddSecuredQlippothToMarket(GetQlippothPrototype(qgate.Phase), qgate.Phase);
+        if (qgate.QlippothPrototype is { } prototype)
+            _market.AddSecuredQlippothToMarket(prototype, qgate.Phase);
         QueueDel(uid);
     }
-
-    private void EvacuateDungeon(MapId dungeonMap, MapCoordinates exit)
-    {
-        var players = EntityQueryEnumerator<ActorComponent, TransformComponent>();
-        while (players.MoveNext(out var player, out _, out var xform))
-        {
-            if (xform.MapID == dungeonMap)
-                _transform.SetMapCoordinates(player, exit);
-        }
-    }
-
-    public string GetPhaseName(QGatePhase phase)
-    {
-        return phase switch
-        {
-            QGatePhase.Phase1Rift => Loc.GetString("qgate-phase-rift"),
-            QGatePhase.Phase2Verge => Loc.GetString("qgate-phase-verge"),
-            QGatePhase.Phase3Eclipse => Loc.GetString("qgate-phase-eclipse"),
-            QGatePhase.Phase4Abyss => Loc.GetString("qgate-phase-abyss"),
-            QGatePhase.Phase5Horizon => Loc.GetString("qgate-phase-horizon"),
-            _ => "Unknown Phase"
-        };
-    }
-
-    private static EntProtoId GetQlippothPrototype(QGatePhase phase)
-    {
-        return phase switch
-        {
-            QGatePhase.Phase1Rift => "MobQlippothPhase1",
-            QGatePhase.Phase2Verge => "MobQlippothPhase2",
-            QGatePhase.Phase3Eclipse => "MobQlippothPhase3",
-            QGatePhase.Phase4Abyss => "MobQlippothPhase4",
-            QGatePhase.Phase5Horizon => "MobQlippothPhase5",
-            _ => "MobQlippothPhase1"
-        };
-    }
+    #endregion
 }

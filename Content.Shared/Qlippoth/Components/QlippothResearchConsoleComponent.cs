@@ -62,10 +62,6 @@ public sealed class QlippothResearchConsoleBuiState : BoundUserInterfaceState
     public bool HasLinkedChamber;
     public bool ChamberOccupied;
     public string? QlippothName;
-    public QGatePhase Phase;
-    public int QlippothCounter;
-    public int MaxCounter;
-    public float StressLevel;
     public bool IsScanning;
     public float ScanProgress;
     public int AccumulatedPoints;
@@ -74,10 +70,6 @@ public sealed class QlippothResearchConsoleBuiState : BoundUserInterfaceState
         bool hasLinkedChamber,
         bool chamberOccupied,
         string? qlippothName,
-        QGatePhase phase,
-        int qlippothCounter,
-        int maxCounter,
-        float stressLevel,
         bool isScanning,
         float scanProgress,
         int accumulatedPoints)
@@ -85,10 +77,6 @@ public sealed class QlippothResearchConsoleBuiState : BoundUserInterfaceState
         HasLinkedChamber = hasLinkedChamber;
         ChamberOccupied = chamberOccupied;
         QlippothName = qlippothName;
-        Phase = phase;
-        QlippothCounter = qlippothCounter;
-        MaxCounter = maxCounter;
-        StressLevel = stressLevel;
         IsScanning = isScanning;
         ScanProgress = scanProgress;
         AccumulatedPoints = accumulatedPoints;

@@ -1,4 +1,5 @@
 using Robust.Shared.GameStates;
+using Robust.Shared.Prototypes;
 
 namespace Content.Shared.Qlippoth.Components;
 
@@ -55,4 +56,11 @@ public sealed partial class QGateComponent : Component
 
     [DataField("locationName"), AutoNetworkedField]
     public string LocationName { get; set; } = "Unknown Sector";
+
+    /// <summary>
+    /// The Qlippoth picked for this gate when its rift opened (from the pool of prototypes listing this gate's phase).
+    /// Spawned on the station on breach, sold to the market on clear. Null until the rift opens, or if nothing fit the phase.
+    /// </summary>
+    [DataField, AutoNetworkedField]
+    public EntProtoId? QlippothPrototype { get; set; }
 }

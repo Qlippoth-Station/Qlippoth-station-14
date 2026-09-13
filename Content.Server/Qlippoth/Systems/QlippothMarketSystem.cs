@@ -6,12 +6,14 @@ using Content.Server.Cargo.Systems;
 using Content.Server.Station.Systems;
 using Content.Shared.Cargo.Components;
 using Content.Shared.Cargo.Prototypes;
-using Content.Shared.CCVar;
-using Robust.Shared.Configuration;
 using System.Linq;
 
 namespace Content.Server.Qlippoth.Systems;
 
+/// <summary>
+/// Secured Qlippoths (cleared rifts) go on sale here. Price comes from the Qlippoth prototype (QlippothComponent.MarketPrice);
+/// the gate phase it came through is kept only for display.
+/// </summary>
 public sealed class QlippothMarketSystem : EntitySystem
 {
     private readonly List<EntProtoId> _availableMarketQlippoths = new();
@@ -19,13 +21,8 @@ public sealed class QlippothMarketSystem : EntitySystem
     [Dependency] private readonly IPrototypeManager _prototypes = default!;
     [Dependency] private readonly CargoSystem _cargo = default!;
     [Dependency] private readonly StationSystem _stations = default!;
-
-    [Dependency] private readonly IConfigurationManager _cfg = default!;
-
-    public override void Initialize()
-    {
-        base.Initialize();
-    }
+    [Dependency] private readonly QlippothSystem _qlippoths = default!;
+    [Dependency] private readonly QGateSystem _gates = default!;
 
     public void AddSecuredQlippothToMarket(EntProtoId protoId, QGatePhase phase)
     {
@@ -43,8 +40,7 @@ public sealed class QlippothMarketSystem : EntitySystem
         if (!_availableMarketQlippoths.Contains(protoId))
             return false;
 
-        var phase = _marketPhases.GetValueOrDefault(protoId, QGatePhase.Phase1Rift);
-        var price = GetPrice(phase);
+        var price = GetPrice(protoId);
         var station = _stations.GetOwningStation(cargoSpawnLocation);
         if (station == null || !TryWithdraw(station.Value, price))
             return false;
@@ -70,7 +66,7 @@ public sealed class QlippothMarketSystem : EntitySystem
         {
             var phase = _marketPhases.GetValueOrDefault(proto, QGatePhase.Phase1Rift);
             return new QlippothMarketEntry(proto.Id, _prototypes.Index(proto).Name ?? proto.Id,
-                GetPhaseName(phase), GetPrice(phase));
+                _gates.GetPhaseName(phase), GetPrice(proto));
         }).ToList();
     }
 
@@ -102,38 +98,17 @@ public sealed class QlippothMarketSystem : EntitySystem
         foreach (var proto in _availableMarketQlippoths)
         {
             var name = _prototypes.Index(proto).Name ?? proto.Id;
-            var phase = _marketPhases.TryGetValue(proto, out var value) ? value : QGatePhase.Phase1Rift;
+            var phase = _marketPhases.GetValueOrDefault(proto, QGatePhase.Phase1Rift);
             lines.Add(Loc.GetString("containment-market-entry",
                 ("name", name),
-                ("phase", GetPhaseName(phase))));
+                ("phase", _gates.GetPhaseName(phase))));
         }
 
         return Loc.GetString("containment-market-stock", ("stock", string.Join("\n", lines)));
     }
 
-    private string GetPhaseName(QGatePhase phase)
+    private int GetPrice(EntProtoId protoId)
     {
-        return phase switch
-        {
-            QGatePhase.Phase1Rift => Loc.GetString("qgate-phase-rift"),
-            QGatePhase.Phase2Verge => Loc.GetString("qgate-phase-verge"),
-            QGatePhase.Phase3Eclipse => Loc.GetString("qgate-phase-eclipse"),
-            QGatePhase.Phase4Abyss => Loc.GetString("qgate-phase-abyss"),
-            QGatePhase.Phase5Horizon => Loc.GetString("qgate-phase-horizon"),
-            _ => Loc.GetString("qgate-phase-rift")
-        };
-    }
-
-    private int GetPrice(QGatePhase phase)
-    {
-        return phase switch
-        {
-            QGatePhase.Phase1Rift => _cfg.GetCVar(CCVars.QlippothPhase1Price),
-            QGatePhase.Phase2Verge => _cfg.GetCVar(CCVars.QlippothPhase2Price),
-            QGatePhase.Phase3Eclipse => _cfg.GetCVar(CCVars.QlippothPhase3Price),
-            QGatePhase.Phase4Abyss => _cfg.GetCVar(CCVars.QlippothPhase4Price),
-            QGatePhase.Phase5Horizon => _cfg.GetCVar(CCVars.QlippothPhase5Price),
-            _ => _cfg.GetCVar(CCVars.QlippothPhase1Price)
-        };
+        return _qlippoths.GetPrototypeData(protoId)?.MarketPrice ?? 0;
     }
 }

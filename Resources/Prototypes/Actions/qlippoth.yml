@@ -1,0 +1,61 @@
+# Actions granted by Qlippoth instances while they are held.
+# Every one of them raises the same QlippothActionEvent; the `key` is what the Qlippoth's
+# OnActionInitiation matches on. To give a new Qlippoth a button: add an entry here with a new key,
+# list it under ActionGrant + ItemActionGrant on the entity, and add an OnActionInitiation action with that key.
+
+- type: entity
+  parent: BaseAction
+  id: ActionQlippothGazeSeek
+  name: Seek
+  description: Ask the lantern to point you toward the nearest way out.
+  components:
+  - type: Action
+    useDelay: 3
+    itemIconStyle: BigItem
+    icon: { sprite: Qlippoth/gaze_scepter.rsi, state: icon }
+  - type: InstantAction
+    event: !type:QlippothActionEvent
+      key: seek
+
+- type: entity
+  parent: BaseToggleAction
+  id: ActionQlippothEdgeSwordStance
+  name: Change Stance
+  description: Switch the blade between defensive and offensive stance.
+  components:
+  - type: Action
+    useDelay: 1
+    itemIconStyle: BigItem
+    icon: { sprite: Qlippoth/edge_sword.rsi, state: icon }
+  - type: InstantAction
+    event: !type:QlippothActionEvent
+      key: stance
+      flipToggle: true
+
+- type: entity
+  parent: BaseAction
+  id: ActionQlippothKeySeal
+  name: Seal
+  description: Slam shut and bolt every airlock nearby for a short while.
+  components:
+  - type: Action
+    useDelay: 20
+    itemIconStyle: BigItem
+    icon: { sprite: Qlippoth/key.rsi, state: icon }
+  - type: InstantAction
+    event: !type:QlippothActionEvent
+      key: seal
+
+- type: entity
+  parent: BaseAction
+  id: ActionQlippothKeyRelease
+  name: Release
+  description: Unbolt and throw open every airlock nearby for a short while.
+  components:
+  - type: Action
+    useDelay: 20
+    itemIconStyle: BigItem
+    icon: { sprite: Qlippoth/key.rsi, state: icon }
+  - type: InstantAction
+    event: !type:QlippothActionEvent
+      key: release

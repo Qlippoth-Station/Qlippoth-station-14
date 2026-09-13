@@ -86,15 +86,5 @@ public sealed partial class QGateSpawnCommand : IConsoleCommand
         return value is "1" or "2" or "3" or "4" or "5";
     }
 
-    private static string GetPrototype(QGatePhase phase)
-    {
-        return phase switch
-        {
-            QGatePhase.Phase2Verge => "QGatePhase2Verge",
-            QGatePhase.Phase3Eclipse => "QGatePhase3Eclipse",
-            QGatePhase.Phase4Abyss => "QGatePhase4Abyss",
-            QGatePhase.Phase5Horizon => "QGatePhase5Horizon",
-            _ => "QGatePhase1Rift"
-        };
-    }
+    private static string GetPrototype(QGatePhase phase) => QGateSystem.GetGatePrototype(phase);
 }

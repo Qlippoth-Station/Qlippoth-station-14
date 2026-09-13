@@ -47,8 +47,6 @@ research-console-no-target = No Qlippoth linked
 research-console-ready = Ready
 research-console-scanning = Scanning: {$progress}
 research-console-status = Target: {$target}
-    Phase: {$phase}
-    Stress: {$stress}
     Research points: {$points}
     {$scan}
 

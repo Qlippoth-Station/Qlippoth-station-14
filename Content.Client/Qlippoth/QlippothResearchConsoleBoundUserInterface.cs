@@ -48,14 +48,11 @@ public sealed class QlippothResearchConsoleBoundUserInterface(EntityUid owner, E
             return;
 
         var target = researchState.QlippothName ?? Loc.GetString("research-console-no-target");
-        var phase = researchState.QlippothName == null ? "--" : researchState.Phase.ToString();
         var scan = researchState.IsScanning
             ? Loc.GetString("research-console-scanning", ("progress", researchState.ScanProgress.ToString("P0")))
             : Loc.GetString("research-console-ready");
         _status.Text = Loc.GetString("research-console-status",
             ("target", target),
-            ("phase", phase),
-            ("stress", researchState.StressLevel.ToString("0.0")),
             ("points", researchState.AccumulatedPoints),
             ("scan", scan));
     }

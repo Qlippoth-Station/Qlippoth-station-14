@@ -67,13 +67,10 @@ public sealed partial class ContainmentDimensionSystem : EntitySystem
                 _transform.SetCoordinates(qlippoth,
                     qlippothTransform.Coordinates.Offset(direction * chamber.EscapeSpeed * frameTime));
 
-                if (offset.Length() > chamber.ContainmentRadius + 1f &&
-                    TryComp<QlippothComponent>(qlippoth, out var qlippothComponent))
+                if (offset.Length() > chamber.ContainmentRadius + 1f)
                 {
-                    qlippothComponent.ContainmentChamberId = null;
                     chamber.IsOccupied = false;
                     chamber.ContainedQlippoth = null;
-                    Dirty(qlippoth, qlippothComponent);
                     Dirty(chamberTransform.Owner, chamber);
                 }
             }

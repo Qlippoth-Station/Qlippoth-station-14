@@ -40,14 +40,13 @@ public sealed class QlippothResearchConsoleSystem : EntitySystem
                 console.IsScanning = false;
                 console.ScanTimeRemaining = 0;
 
-                // Award research points based on Qlippoth phase
+                // Award the research points the contained Qlippoth defines for itself (QlippothComponent.ResearchPoints)
                 if (console.LinkedChamber != null &&
                     TryComp<ContainmentChamberComponent>(console.LinkedChamber.Value, out var chamber) &&
                     chamber.ContainedQlippoth != null &&
                     TryComp<QlippothComponent>(chamber.ContainedQlippoth.Value, out var qlippoth))
                 {
-                    var points = (int)qlippoth.Phase * 50;
-                    console.AccumulatedResearchPoints += points;
+                    console.AccumulatedResearchPoints += qlippoth.ResearchPoints;
                 }
 
                 Dirty(uid, console);
@@ -94,25 +93,14 @@ public sealed class QlippothResearchConsoleSystem : EntitySystem
         var hasLinkedChamber = console.LinkedChamber != null;
         var chamberOccupied = false;
         string? qlippothName = null;
-        var phase = QGatePhase.Phase1Rift;
-        var counter = 0;
-        var maxCounter = 0;
-        var stressLevel = 0f;
 
         if (hasLinkedChamber &&
             TryComp<ContainmentChamberComponent>(console.LinkedChamber!.Value, out var chamber))
         {
             chamberOccupied = chamber.IsOccupied;
 
-            if (chamber.ContainedQlippoth != null &&
-                TryComp<QlippothComponent>(chamber.ContainedQlippoth.Value, out var qlippoth))
-            {
+            if (chamber.ContainedQlippoth != null && HasComp<QlippothComponent>(chamber.ContainedQlippoth.Value))
                 qlippothName = MetaData(chamber.ContainedQlippoth.Value).EntityName;
-                phase = qlippoth.Phase;
-                counter = qlippoth.QlippothCounter;
-                maxCounter = qlippoth.MaxCounter;
-                stressLevel = qlippoth.StressLevel;
-            }
         }
 
         var scanProgress = console.IsScanning
@@ -123,10 +111,6 @@ public sealed class QlippothResearchConsoleSystem : EntitySystem
             hasLinkedChamber,
             chamberOccupied,
             qlippothName,
-            phase,
-            counter,
-            maxCounter,
-            stressLevel,
             console.IsScanning,
             scanProgress,
             console.AccumulatedResearchPoints
