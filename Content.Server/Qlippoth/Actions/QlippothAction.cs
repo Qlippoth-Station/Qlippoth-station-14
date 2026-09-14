@@ -9,14 +9,14 @@ namespace Content.Server.Qlippoth
     ///
     /// YAML example:
     ///   - !type:QlippothAction
-    ///     initiation: !type:TriggerInitiation
+    ///     actionName: parry
+    ///     initiation: !type:OnHolderDamagedInitiation
+    ///     requireState: { stance: defensive }   # optional, see QlippothActionsComponent.State
+    ///     cooldown: 6                            # optional, seconds
     ///     results:
+    ///       - !type:NegateDamageResult
     ///       - !type:PlaySoundResult
-    ///         soundPath: /Audio/Qlippoth/screech.ogg
-    ///         volume: -3
-    ///       - !type:SpawnEntityResult
-    ///         prototype: MobRatServant
-    ///         count: 2
+    ///         soundPath: /Audio/Weapons/block_metal1.ogg
     /// </summary>
     [DataDefinition]
     public sealed partial class QlippothAction
@@ -29,5 +29,23 @@ namespace Content.Server.Qlippoth
 
         [DataField]
         public List<QlippothResult> Results { get; set; } = new();
+
+        /// <summary>
+        /// Only fire if every entry matches the Qlippoth's current state (QlippothActionsComponent.State).
+        /// Change state with SetStateResult / ToggleStateResult.
+        /// </summary>
+        [DataField]
+        public Dictionary<string, string> RequireState { get; set; } = new();
+
+        /// <summary>Seconds this action cannot fire again after firing. 0 = no cooldown.</summary>
+        [DataField]
+        public float Cooldown { get; set; } = 0f;
+
+        /// <summary>Keep running the remaining results even if one of them reports failure.</summary>
+        [DataField]
+        public bool ContinueOnFailure { get; set; } = false;
+
+        /// <summary>Runtime: earliest time the action may fire again.</summary>
+        public TimeSpan NextReadyAt;
     }
 }

@@ -1,15 +1,33 @@
 # BASE QLIPPOTH ENTITIES TO USE AS PARENTS #
 # THE Base Qlippoth
+# QlippothBase carries ONLY what every Qlippoth shares: a default sprite and the four Qlippoth components.
+# Mob plumbing (BaseControllable: MindContainer, Input, Eye, mob physics/fixtures...) is NOT here any more;
+# it comes in through QlippothMobBase (via BaseMob) and the Animated / NonConstrained movement bases,
+# so item, structure, wall and machine Qlippoths stay clean.
 - type: entity
-  id: QlippothBase # keeps BaseControllable and remains as a future container for qlippoth stuff
+  id: QlippothBase
   name: Qlippoth Base
   abstract: true
-  parent:
-  - BaseControllable
   components:
     - type: Sprite
       sprite: Qlippoth/king_in_yellow.rsi # has a default sprite for testing
-      state: front
+      layers: # NOTE: instances that override the sprite must also use `layers:` (not `state:`), otherwise this layer stays underneath.
+        - state: front
+    # Identity. Every Qlippoth has this; instances override what they need.
+    #   gatePhases     -> which Q-Gate phases can bring this Qlippoth (several Qlippoths may share a phase; one is picked by spawnWeight)
+    #   dungeon        -> how the rift behind the gate is built for this Qlippoth
+    #   marketPrice / researchPoints -> what it is worth once secured
+    # Passive effects (sanity aura, corruption) are NOT tied to phase: add a ProximityInitiation action (see MobQlippothPhase3/4).
+    - type: Qlippoth
+      gatePhases: [Phase1Rift]
+      spawnWeight: 1
+      marketPrice: 500
+      researchPoints: 50
+      dungeon: !type:ArenaDungeon
+        width: 20
+        height: 15
+        floor: FloorSteel
+        wall: WallReinforced
     # Qlippoth Testing Aid
     - type: QlippothPresence
       presenceType: Object # default values, other presences not implemented
@@ -184,6 +202,7 @@
   abstract: true
   parent:
   - QlippothBase
+  - BaseControllable # animated = something can drive it (player/ghost role/AI), so it needs the controllable plumbing
   components:
   - type: Physics
     bodyType: KinematicController
@@ -199,6 +218,7 @@
   abstract: true
   parent:
   - QlippothBase
+  - BaseControllable
   components:
   - type: QlippothMovement
     movementType: NonConstrained
@@ -228,9 +248,12 @@
   parent: QlippothBase
   abstract: false # set true in base objects, overriden
   components: # this needs to be remade after all the systems are in place.
+    - type: Qlippoth
+      gatePhases: []   # admin-spawn only, never comes through a gate
     - type: Sprite
       sprite: Qlippoth/king_in_yellow.rsi
-      state: front
+      layers:
+        - state: front
     - type: QlippothActions
       actions:
         - !type:QlippothAction
@@ -275,3 +298,537 @@
           friction: 0.2
     - type: Pullable
     - type: DamageExaminable
+
+
+# PLACEHOLDER MOB INSTANCES #
+# Old test mobs. Phase 1-3 ones have spawnWeight 0: they stay defined for admin spawning but never come through a gate
+# (the item Qlippoths below cover those phases). Phase 4-5 ones are the only candidates for their phases, so they stay active.
+- type: entity
+  id: MobQlippothPhase1
+  parent: QlippothMobBase
+  name: Minor Qlippoth
+  description: A low-threat dimensional anomaly. Relatively docile but should be monitored.
+  components:
+    - type: Qlippoth
+      gatePhases: [Phase1Rift]
+      spawnWeight: 0
+      marketPrice: 500
+      researchPoints: 50
+    - type: MobThresholds
+      thresholds:
+        0: Alive
+        100: Dead
+    - type: PointLight
+      radius: 4
+      energy: 1
+      color: "#CCCCFF"
+
+- type: entity
+  id: MobQlippothPhase2
+  parent: QlippothMobBase
+  name: Verge Qlippoth
+  description: An entity on the edge of anomaly threshold. Displays increasing energy signatures.
+  components:
+    - type: Qlippoth
+      gatePhases: [Phase2Verge]
+      spawnWeight: 0
+      marketPrice: 1000
+      researchPoints: 100
+      dungeon: !type:ArenaDungeon
+        width: 24
+        height: 18
+    - type: MobThresholds
+      thresholds:
+        0: Alive
+        180: Dead
+    - type: PointLight
+      radius: 4
+      energy: 2
+      color: "#4488FF"
+
+- type: entity
+  id: MobQlippothPhase3
+  parent: QlippothMobBase
+  name: Eclipse Qlippoth
+  description: A high-threat entity that emits mental interference patterns.
+  components:
+    - type: Qlippoth
+      gatePhases: [Phase3Eclipse]
+      spawnWeight: 0
+      marketPrice: 2000
+      researchPoints: 150
+      dungeon: !type:ArenaDungeon
+        width: 28
+        height: 21
+    - type: MobThresholds
+      thresholds:
+        0: Alive
+        300: Dead
+    - type: PointLight
+      radius: 4
+      energy: 3
+      color: "#FFCC00"
+    - type: QlippothActions
+      actions:
+        - !type:QlippothAction
+          actionName: sanityAura   # every second, everyone with Sanity within 8 tiles loses 6 (scaled by their DrainMultiplier)
+          initiation: !type:ProximityInitiation
+            interval: 1
+            range: 8
+            requiredComponent: Sanity
+          results:
+            - !type:DamageSanityResult
+              amount: 6
+              scaled: true
+
+- type: entity
+  id: MobQlippothPhase4
+  parent: QlippothMobBase
+  name: Abyss Qlippoth
+  description: A severely dangerous entity radiating deep dimensional corruption.
+  components:
+    - type: Qlippoth
+      gatePhases: [Phase4Abyss]
+      marketPrice: 4000
+      researchPoints: 200
+      dungeon: !type:ArenaDungeon
+        width: 32
+        height: 24
+        floor: FloorBasalt
+        wall: WallRockBasalt
+    - type: MobThresholds
+      thresholds:
+        0: Alive
+        500: Dead
+    - type: PointLight
+      radius: 4
+      energy: 5
+      color: "#FF6600"
+    - type: QlippothActions # replaces the base template action list
+      actions:
+        - !type:QlippothAction
+          actionName: sanityAura
+          initiation: !type:ProximityInitiation
+            interval: 1
+            range: 8
+          results:
+            - !type:DamageSanityResult
+              amount: 8
+              scaled: true
+        - !type:QlippothAction
+          actionName: corruptionAura # every second, 8% chance to corrupt each crew member within 5 tiles
+          initiation: !type:ProximityInitiation
+            interval: 1
+            range: 5
+          results:
+            - !type:ApplyCorruptionResult
+              chance: 0.08
+              duration: 60
+              severity: 1
+              sanityDrainPerSecond: 2
+              pulseInterval: 10
+              spreadChance: 0.15
+              spreadRadius: 5
+        - !type:QlippothAction
+          actionName: corruptionTouch # fired once per crew member this Qlippoth corrupts
+          initiation: !type:OnCorruptionAppliedInitiation
+          results:
+            - !type:SpawnEffectResult
+              prototype: EffectVoidBlink
+            - !type:PopupResult
+              message: qlippoth-corruption-applied
+        - !type:QlippothAction
+          actionName: corruptionPulse # fired every qlippoth.corruption_pulse_interval seconds per corrupted crew member
+          initiation: !type:OnCorruptionPulseInitiation
+          results:
+            - !type:SpawnEffectResult
+              prototype: EffectVoidBlink
+
+- type: entity
+  id: MobQlippothPhase5
+  parent: QlippothMobBase
+  name: Horizon Qlippoth
+  description: A cataclysmic-class entity capable of warping reality itself.
+  components:
+    - type: Qlippoth
+      gatePhases: [Phase5Horizon]
+      marketPrice: 8000
+      researchPoints: 250
+      dungeon: !type:ArenaDungeon
+        width: 36
+        height: 27
+        floor: FloorBasalt
+        wall: WallRockBasalt
+    - type: MobThresholds
+      thresholds:
+        0: Alive
+        800: Dead
+    - type: PointLight
+      radius: 8
+      energy: 8
+      color: "#FF0000"
+    - type: QlippothActions
+      actions:
+        - !type:QlippothAction
+          actionName: sanityAura
+          initiation: !type:ProximityInitiation
+            interval: 1
+            range: 8
+          results:
+            - !type:DamageSanityResult
+              amount: 10
+              scaled: true
+        - !type:QlippothAction
+          actionName: corruptionAura
+          initiation: !type:ProximityInitiation
+            interval: 1
+            range: 5
+          results:
+            - !type:ApplyCorruptionResult
+              chance: 0.1
+              duration: 60
+              severity: 2
+              sanityDrainPerSecond: 2
+              pulseInterval: 10
+              spreadChance: 0.15
+              spreadRadius: 5
+        - !type:QlippothAction
+          actionName: corruptionTouch
+          initiation: !type:OnCorruptionAppliedInitiation
+          results:
+            - !type:SpawnEffectResult
+              prototype: EffectVoidBlink
+            - !type:PopupResult
+              message: qlippoth-corruption-applied
+        - !type:QlippothAction
+          actionName: corruptionPulse
+          initiation: !type:OnCorruptionPulseInitiation
+          results:
+            - !type:SpawnEffectResult
+              prototype: EffectVoidBlink
+            - !type:DamageSanityResult # on top of the passive drain the corruption itself applies
+              amount: 5
+
+# Controlled mob for testing phase, presence, movement, sanity and action systems together.
+- type: entity
+  id: MobQlippothTest
+  parent: QlippothMobBase
+  name: Test Qlippoth - King in Yellow
+  description: A controlled Qlippoth used to test phase, movement, presence, sanity and action systems.
+  components:
+    - type: Qlippoth
+      gatePhases: []   # admin-spawn only
+      marketPrice: 2000
+      researchPoints: 150
+    - type: QlippothPresence
+      presenceType: Object
+      objectSize: Large
+    - type: QlippothMovement
+      movementType: Animated
+    - type: QlippothActions
+      actions:
+        - !type:QlippothAction
+          actionName: sanityAura
+          initiation: !type:ProximityInitiation
+            interval: 1
+            range: 8
+          results:
+            - !type:DamageSanityResult
+              amount: 6
+              scaled: true
+        - !type:QlippothAction
+          actionName: testPullResponse
+          initiation: !type:OnPullInitiation
+          results:
+            - !type:PlaySoundResult
+              soundPath: /Audio/Qlippoth/qlippoth.ogg
+              volume: 3
+    - type: PointLight
+      radius: 5
+      energy: 4
+      color: "#FFD54A"
+
+
+# ITEM INSTANCES #
+# Concrete, test-scale hand-held Qlippoths. Resolution / domain / aspect logic comes later.
+- type: entity
+  id: QlippothGazeScepter
+  parent: QlippothItemBase
+  name: scepter of gaze
+  description: A shapeless branch with a lantern set into its middle. The light inside is looking for something.
+  components:
+    - type: Qlippoth
+      gatePhases: [Phase1Rift]
+      marketPrice: 500
+      researchPoints: 50
+      dungeon: !type:ArenaDungeon
+        width: 20
+        height: 15
+    - type: QlippothPresence
+      presenceType: Object
+      objectSize: HandSized
+    - type: QlippothMovement
+      movementType: Inanimate
+    # Behaviour is plain actions: pick up -> lantern wakes; held -> keeps re-aiming; Seek button -> re-aim + sanity cost.
+    # Target priority: ContainmentPortal (exit while inside a domain), then QGate (nearest gate on the station).
+    - type: QlippothActions
+      actions:
+        - !type:QlippothAction
+          actionName: lanternWakes
+          initiation: !type:OnPickedUpInitiation
+          results:
+            - !type:SetPinpointerActiveResult
+              active: true
+            - !type:PointAtNearestResult
+              targetComponents: [ContainmentPortal, QGate]
+        - !type:QlippothAction
+          actionName: lanternSleeps
+          initiation: !type:OnDroppedInitiation
+          results:
+            - !type:SetPinpointerActiveResult
+              active: false
+        - !type:QlippothAction
+          actionName: lanternFollows   # catches gates/portals that appear after pickup
+          initiation: !type:IntervalInitiation
+            interval: 2
+            onlyWhileHeld: true
+          results:
+            - !type:PointAtNearestResult
+              targetComponents: [ContainmentPortal, QGate]
+        - !type:QlippothAction
+          actionName: seek
+          initiation: !type:OnActionInitiation
+            key: seek
+          results:
+            - !type:PointAtNearestResult   # fails (stops the chain) when nothing is found
+              targetComponents: [ContainmentPortal, QGate]
+              foundMessage: qlippoth-gaze-seek
+              noTargetMessage: qlippoth-gaze-no-target
+            - !type:PlaySoundResult
+              soundPath: /Audio/Qlippoth/qlippoth.ogg
+            - !type:DamageSanityResult   # target = the holder
+              amount: 5
+    - type: Transform
+      noRot: true # keep the arrow overlay readable, same as the stock pinpointer
+    - type: Sprite
+      noRot: true
+      layers:
+        - sprite: Qlippoth/gaze_scepter.rsi
+          state: icon
+          map: ["enum.PinpointerLayers.Base"]
+        - sprite: Objects/Devices/pinpointer.rsi   # borrowed arrow overlay; swap for your own later
+          state: pinonnull
+          map: ["enum.PinpointerLayers.Screen"]
+          shader: unshaded
+          scale: 2, 2   # stock arrow is tiny; enlarge until we have our own
+          visible: false
+    - type: Item
+      size: Normal
+    - type: Pinpointer
+      canRetarget: false
+      reachedDistance: 1.5
+      closeDistance: 6
+      mediumDistance: 14
+    - type: Appearance
+    - type: GenericVisualizer
+      visuals:
+        enum.PinpointerVisuals.IsActive:
+          enum.PinpointerLayers.Screen:
+            True: { visible: true }
+            False: { visible: false }
+        enum.PinpointerVisuals.TargetDistance:
+          enum.PinpointerLayers.Screen:
+            Unknown: { state: pinonnull }
+            Reached: { state: pinondirect }
+            Close: { state: pinonclose }
+            Medium: { state: pinonmedium }
+            Far: { state: pinonfar }
+    - type: ActionGrant          # creates the action entities on the item
+      actions:
+        - ActionQlippothGazeSeek
+    - type: ItemActionGrant      # hands them to whoever is holding it
+      actions:
+        - ActionQlippothGazeSeek
+    - type: PointLight
+      radius: 3
+      energy: 1.5
+      color: "#FFD54A"
+
+- type: entity
+  id: QlippothEdgeSword
+  parent: QlippothItemBase
+  name: sword of edge
+  description: An elegant blade that seems to shift its weight toward whoever is holding it.
+  components:
+    - type: Qlippoth
+      gatePhases: [Phase2Verge]
+      marketPrice: 1000
+      researchPoints: 100
+      dungeon: !type:ArenaDungeon
+        width: 24
+        height: 18
+    - type: QlippothPresence
+      presenceType: Object
+      objectSize: HandSized
+    - type: QlippothMovement
+      movementType: Inanimate # becomes Animated/Specialist once it flies on its own
+    # Stance lives in the state dictionary; the two stance actions gate on it with requireState.
+    - type: QlippothActions
+      state:
+        stance: defensive
+      actions:
+        - !type:QlippothAction
+          actionName: takenUp
+          initiation: !type:OnPickedUpInitiation
+          results:
+            - !type:PopupResult
+              message: qlippoth-edge-taken
+        - !type:QlippothAction
+          actionName: toOffensive
+          initiation: !type:OnActionInitiation
+            key: stance
+          requireState: { stance: defensive }
+          results:
+            - !type:SetStateResult
+              key: stance
+              value: offensive
+            - !type:PopupResult
+              message: qlippoth-edge-stance-offensive
+        - !type:QlippothAction
+          actionName: toDefensive
+          initiation: !type:OnActionInitiation
+            key: stance
+          requireState: { stance: offensive }
+          results:
+            - !type:SetStateResult
+              key: stance
+              value: defensive
+            - !type:PopupResult
+              message: qlippoth-edge-stance-defensive
+        - !type:QlippothAction
+          actionName: parry   # defensive: negate the next external hit on the holder
+          initiation: !type:OnHolderDamagedInitiation
+          requireState: { stance: defensive }
+          cooldown: 6
+          results:
+            - !type:NegateDamageResult
+            - !type:PlaySoundResult
+              soundPath: /Audio/Weapons/block_metal1.ogg
+            - !type:PopupResult
+              message: qlippoth-edge-parry
+              recipient: Everyone
+              type: Medium
+        - !type:QlippothAction
+          actionName: echo    # offensive: bonus damage on hit
+          initiation: !type:OnMeleeHitInitiation
+          requireState: { stance: offensive }
+          cooldown: 2.5
+          results:
+            - !type:BonusMeleeDamageResult
+              damage:
+                types:
+                  Slash: 10
+            - !type:PlaySoundResult
+              soundPath: /Audio/Weapons/bladeslice.ogg
+            - !type:PopupResult
+              message: qlippoth-edge-repeat
+              recipient: Actor
+    - type: Sprite
+      layers:
+        - sprite: Qlippoth/edge_sword.rsi
+          state: icon
+    - type: Item
+      size: Normal
+    - type: MeleeWeapon
+      attackRate: 1.3
+      wideAnimationRotation: 180 # sprite is drawn tip-up; 0 would point the tip at the attacker
+      damage:
+        types:
+          Slash: 14
+      soundHit:
+        path: /Audio/Weapons/bladeslice.ogg
+    - type: ActionGrant
+      actions:
+        - ActionQlippothEdgeSwordStance
+    - type: ItemActionGrant
+      actions:
+        - ActionQlippothEdgeSwordStance
+    - type: PointLight
+      radius: 2
+      energy: 1
+      color: "#C0E8FF"
+
+- type: entity
+  id: QlippothKey
+  parent: QlippothItemBase
+  name: key of thresholds
+  description: A key with no teeth. Every door seems to remember it anyway.
+  components:
+    - type: Qlippoth
+      gatePhases: [Phase3Eclipse]
+      marketPrice: 2000
+      researchPoints: 150
+      dungeon: !type:ArenaDungeon
+        width: 28
+        height: 21
+    - type: QlippothPresence
+      presenceType: Object
+      objectSize: HandSized
+    - type: QlippothMovement
+      movementType: Inanimate
+    - type: QlippothActions
+      actions:
+        - !type:QlippothAction
+          actionName: unlock   # click a door with the key: open it regardless of access
+          initiation: !type:OnUsedOnInitiation
+            requiredComponent: Door
+          results:
+            - !type:OpenDoorResult   # fails on welded doors, which stops the sound + popup below
+              failMessage: qlippoth-key-welded
+            - !type:PlaySoundResult
+              soundPath: /Audio/Machines/airlock_open.ogg
+            - !type:PopupResult
+              message: qlippoth-key-unlock
+              recipient: Actor
+        - !type:QlippothAction
+          actionName: seal
+          initiation: !type:OnActionInitiation
+            key: seal
+          results:
+            - !type:HoldDoorsInRangeResult
+              mode: Sealed
+              range: 7
+              duration: 15
+              message: qlippoth-key-seal
+            - !type:PlaySoundResult
+              soundPath: /Audio/Machines/boltsdown.ogg
+        - !type:QlippothAction
+          actionName: release
+          initiation: !type:OnActionInitiation
+            key: release
+          results:
+            - !type:HoldDoorsInRangeResult
+              mode: Released
+              range: 7
+              duration: 15
+              message: qlippoth-key-release
+            - !type:PlaySoundResult
+              soundPath: /Audio/Machines/boltsup.ogg
+    - type: Sprite
+      layers:
+        - sprite: Qlippoth/key.rsi
+          state: icon
+    - type: Item
+      size: Small
+    - type: ActionGrant
+      actions:
+        - ActionQlippothKeySeal
+        - ActionQlippothKeyRelease
+    - type: ItemActionGrant
+      actions:
+        - ActionQlippothKeySeal
+        - ActionQlippothKeyRelease
+    - type: PointLight
+      radius: 2
+      energy: 1
+      color: "#B08CFF"
