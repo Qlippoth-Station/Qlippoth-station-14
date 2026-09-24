@@ -48,6 +48,7 @@ public sealed partial class QGateSystem : EntitySystem
     [Dependency] private SharedDoAfterSystem _doAfter = default!;
     [Dependency] private PopupSystem _popup = default!;
     [Dependency] private SharedAudioSystem _audio = default!;
+    [Dependency] private QlippothActionInitiationSystem _initiation = default!;
 
     private readonly Dictionary<EntityUid, RiftDungeon> _dungeonsByGate = new();
     private readonly Dictionary<EntityUid, EntityUid> _returnPortalsByGate = new();
@@ -73,6 +74,7 @@ public sealed partial class QGateSystem : EntitySystem
 
     private void OnMapInit(EntityUid uid, QGateComponent component, MapInitEvent args)
     {
+        _initiation.DispatchAll<OnGateSpawnedInitiation>(new QlippothTargetEventArgs(uid));
         var xform = Transform(uid);
         if (_containmentDim.IsContainmentDimension(xform.MapID))
         {
@@ -375,7 +377,10 @@ public sealed partial class QGateSystem : EntitySystem
 
         EntityUid? qlippoth = null;
         if (qlippothPrototype is { } prototype)
+        {
             qlippoth = Spawn(prototype, new EntityCoordinates(gridUid, layout.QlippothSpot));
+            _initiation.Dispatch<OnArrivedInitiation>(qlippoth.Value, new QlippothArrivalEventArgs(gate, QlippothArrivalKind.RiftDungeon));
+        }
 
         var entry = new MapCoordinates(layout.Entry, mapId);
         return (new RiftDungeon(mapId, entry, qlippoth), layout.ObjectiveCount);
@@ -608,7 +613,11 @@ public sealed partial class QGateSystem : EntitySystem
 
         var coordinates = Transform(uid).Coordinates;
         if (qgate.QlippothPrototype is { } prototype)
-            Spawn(prototype, coordinates);
+        {
+            var spawned = Spawn(prototype, coordinates);
+            _initiation.Dispatch<OnArrivedInitiation>(spawned, new QlippothArrivalEventArgs(uid, QlippothArrivalKind.GateBreach));
+        }
+        _initiation.DispatchAll<OnAnyGateBreachedInitiation>(new QlippothTargetEventArgs(uid));
 
         _breachEffectsByGate[uid] = new List<EntityUid>
         {
@@ -636,6 +645,8 @@ public sealed partial class QGateSystem : EntitySystem
             var returnPortal = Spawn("ContainmentDimensionExitPortal", dungeon.Entry);
             _portals.RegisterReturnPortal(returnPortal, _transform.GetMapCoordinates(uid));
             _returnPortalsByGate[uid] = returnPortal;
+            if (dungeon.Qlippoth is { } riftQlippoth && Exists(riftQlippoth))
+                _initiation.Dispatch<OnGateClearedInitiation>(riftQlippoth, new QlippothTargetEventArgs(uid));
         }
 
         Dirty(uid, qgate);

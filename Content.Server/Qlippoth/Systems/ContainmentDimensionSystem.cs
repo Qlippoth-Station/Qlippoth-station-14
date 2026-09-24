@@ -29,6 +29,7 @@ public sealed partial class ContainmentDimensionSystem : EntitySystem
     [Dependency] private SharedTransformSystem _transform = default!;
     [Dependency] private IPlayerManager _players = default!;
     [Dependency] private SharedHandsSystem _hands = default!;
+    [Dependency] private QlippothActionInitiationSystem _initiation = default!;
     [Dependency] private readonly ChatSystem _chat = default!;
     [Dependency] private DamageableSystem _damageable = default!;
 
@@ -41,7 +42,9 @@ public sealed partial class ContainmentDimensionSystem : EntitySystem
     {
         base.Initialize();
         SubscribeLocalEvent<PlacementEntityEvent>(OnChamberPlacement);
+#pragma warning disable CS0618 // DamageChangedEvent is obsolete upstream; see QlippothDamagedEventArgs (QlippothInitiation.cs) for why we still use it.
            SubscribeLocalEvent<ContainmentChamberComponent, DamageChangedEvent>(OnChamberDamaged);
+#pragma warning restore CS0618
     }
 
     public override void Update(float frameTime)
@@ -72,11 +75,13 @@ public sealed partial class ContainmentDimensionSystem : EntitySystem
                     chamber.IsOccupied = false;
                     chamber.ContainedQlippoth = null;
                     Dirty(chamberTransform.Owner, chamber);
+                    _initiation.Dispatch<OnEscapedContainmentInitiation>(qlippoth, new QlippothTargetEventArgs(chamberTransform.Owner));
                 }
             }
         }
     }
 
+#pragma warning disable CS0618 // DamageChangedEvent is obsolete upstream; see QlippothDamagedEventArgs (QlippothInitiation.cs) for why we still use it.
     private void OnChamberDamaged(EntityUid uid, ContainmentChamberComponent chamber, DamageChangedEvent args)
     {
         if (chamber.IsBreached || _damageable.GetTotalDamage((uid, args.Damageable)) < chamber.BreachThreshold)
@@ -84,10 +89,13 @@ public sealed partial class ContainmentDimensionSystem : EntitySystem
 
         chamber.IsBreached = true;
         Dirty(uid, chamber);
+        if (chamber.ContainedQlippoth is { } contained && Exists(contained))
+            _initiation.Dispatch<OnContainmentBreachedInitiation>(contained, new QlippothTargetEventArgs(uid));
         _chat.DispatchGlobalAnnouncement(
             Loc.GetString("containment-chamber-breach", ("chamber", chamber.ChamberId)),
             "CentCom Emergency Alert", playSound: true, colorOverride: Color.FromHex("#DC143C"));
     }
+#pragma warning restore CS0618
 
     public EntityUid CreateEngineeringBlueprint(EntityUid console)
     {

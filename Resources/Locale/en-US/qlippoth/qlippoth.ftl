@@ -44,3 +44,18 @@ containment-market-purchased = Qlippoth purchased. Transport capsule dispatched 
 containment-market-insufficient-funds = Insufficient station budget.
 containment-market-active = CentCom auction terminal online. No secured Qlippoth purchase is currently selected.
 containment-market-entry = - {$name} | {$phase}
+
+## Action system (generic strings used by initiations / results)
+
+verb-categories-qlippoth = Qlippoth
+
+qlippoth-ghost-role-servant-name = Qlippoth Servant
+qlippoth-ghost-role-servant-description = A creature spawned or enthralled by a Qlippoth.
+qlippoth-ghost-role-servant-rules = You are a monster. Obey your master.
+
+qlippoth-ghost-role-spawn-name = Qlippoth
+qlippoth-ghost-role-spawn-description = An anomalous entity from beyond dimensional boundaries.
+qlippoth-ghost-role-spawn-rules = You are free.
+
+qlippoth-announcement-sender = Unknown Signal
+qlippoth-whisper-wrap = [italic][color=#9b30ff]{$message}[/color][/italic]

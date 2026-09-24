@@ -832,3 +832,512 @@
       radius: 2
       energy: 1
       color: "#B08CFF"
+
+
+# SHOWCASE INSTANCE #
+# Admin-spawn only. One entity that exercises most initiation / result families, for testing the action system in-game:
+#   - verbs (Interface), examine text, keyword listening, enter/leave range, a state machine driven by chains and delays,
+#   - targeting modes (Target / InRange / Self), destinations (RandomNearSelf), signals to other Qlippoths.
+- type: entity
+  id: QlippothShowcaseIdol
+  parent: QlippothLargeBase
+  name: idol of many mouths
+  description: A squat stone figure. Every one of its mouths is slightly open.
+  components:
+    - type: Qlippoth
+      gatePhases: []   # admin-spawn only
+      marketPrice: 1500
+      researchPoints: 120
+    - type: QlippothPresence
+      presenceType: Object
+      objectSize: Large
+    - type: QlippothMovement
+      movementType: Inanimate
+    - type: PointLight
+      radius: 3
+      energy: 1
+      color: "#9B30FF"
+    - type: Sprite
+      layers:
+        - state: front
+    - type: QlippothActions
+      state:
+        mood: dormant      # dormant -> stirring -> awake -> dormant
+        fed: "0"
+      actions:
+        # --- Interface: the context menu offers a choice; examine shows the mood.
+        - !type:QlippothAction
+          actionName: verbOffer
+          initiation: !type:VerbInitiation
+            key: offer
+            text: Whisper to it
+          cooldown: 3
+          results:
+            - !type:DamageSanityResult      # target = the player who clicked
+              amount: 4
+            - !type:WhisperToResult
+              messages: ["It hears you.", "Not yet.", "Feed it."]
+            - !type:IncrementStateResult
+              key: fed
+              max: 3
+        - !type:QlippothAction
+          actionName: examineMood
+          initiation: !type:OnExaminedInitiation
+          results:
+            - !type:ExamineTextResult
+              message: "[color=#9b30ff]The mouths are still.[/color]"
+        # --- External: feed it by using any food item on it (consumed).
+        - !type:QlippothAction
+          actionName: feed
+          initiation: !type:OnInteractUsingInitiation
+            usedFilter: { requiredComponent: Edible }
+            consumeUsed: true
+          results:
+            - !type:PlaySoundResult
+              soundPath: /Audio/Qlippoth/qlippoth.ogg
+            - !type:IncrementStateResult
+              key: fed
+              max: 3
+            - !type:PopupResult
+              message: "The idol swallows the offering."
+              recipient: Everyone
+        # --- Trigger: once fed three times it stirs (state machine step 1).
+        - !type:QlippothAction
+          actionName: fullyFed
+          initiation: !type:OnStateChangedInitiation
+            key: fed
+            value: "3"
+          requireState: { mood: dormant }
+          results:
+            - !type:SetStateResult
+              key: mood
+              value: stirring
+            - !type:SetLightResult
+              color: "#FF4500"
+              radius: 5
+            - !type:SpeakResult
+              message: "..."
+              emote: true
+            - !type:DelayResult        # 20 seconds later it wakes (Timed via chain)
+              key: wake
+              delay: 20
+        # --- Internal: the delayed chain lands here.
+        - !type:QlippothAction
+          actionName: wake
+          initiation: !type:OnChainInitiation
+            key: wake
+          requireState: { mood: stirring }
+          results:
+            - !type:SetStateResult
+              key: mood
+              value: awake
+            - !type:AnnounceResult
+              message: "Something on the station has opened its eyes."
+            - !type:SignalResult       # tell other Qlippoths on the map
+              signal: idol-awake
+            - !type:DelayResult        # awake for 60 seconds
+              key: sleep
+              delay: 60
+        - !type:QlippothAction
+          actionName: sleep
+          initiation: !type:OnChainInitiation
+            key: sleep
+          results:
+            - !type:SetStateResult
+              key: mood
+              value: dormant
+            - !type:SetStateResult
+              key: fed
+              value: "0"
+            - !type:SetLightResult
+              color: "#9B30FF"
+              radius: 3
+        # --- While awake: anyone who walks close gets thrown back and blinded.
+        - !type:QlippothAction
+          actionName: repel
+          initiation: !type:OnEnterRangeInitiation
+            range: 2.5
+          requireState: { mood: awake }
+          cooldown: 1
+          results:
+            - !type:ThrowResult
+              mode: AwayFromSelf
+              distance: 4
+            - !type:StatusEffectResult
+              effect: StatusEffectBlindness
+              duration: 4
+            - !type:SpawnEffectResult
+              prototype: EffectSparks
+        # --- While awake: hearing its name makes it blink somewhere nearby and belch smoke.
+        - !type:QlippothAction
+          actionName: nameCalled
+          initiation: !type:OnHeardInitiation
+            keywords: [idol]
+            range: 7
+          requireState: { mood: awake }
+          cooldown: 10
+          results:
+            - !type:SmokeResult
+              spread: 3
+              duration: 6
+            - !type:TeleportResult
+              targeting: { mode: Self }
+              destination: { mode: RandomNearSelf, range: 5 }
+              effect: EffectVoidBlink
+        # --- While awake: crowd aura, every 2 s everyone within 6 tiles loses sanity; 10% chance per tick to also stun one of them.
+        - !type:QlippothAction
+          actionName: awakeAura
+          initiation: !type:ProximityInitiation
+            interval: 2
+            range: 6
+          requireState: { mood: awake }
+          results:
+            - !type:DamageSanityResult
+              amount: 3
+              scaled: true
+            - !type:ChanceResult
+              chance: 0.1
+            - !type:StunResult
+              duration: 2
+        # --- Event based: answers another idol's signal by stirring too.
+        - !type:QlippothAction
+          actionName: hearKin
+          initiation: !type:OnSignalInitiation
+            signal: idol-awake
+          requireState: { mood: dormant }
+          results:
+            - !type:SetStateResult
+              key: fed
+              value: "3"
+        # --- Trigger: when destroyed it leaves a puddle and a rat.
+        - !type:QlippothAction
+          actionName: shatter
+          initiation: !type:OnDestroyedInitiation
+          results:
+            - !type:SpillReagentResult
+              reagent: Blood
+              amount: 30
+            - !type:SpawnMobResult
+              spawnMob: MobRatServant
+              ghostRole: true
+              roleName: "Idol's rat"
+              roleDescription: "The last thing the idol thought of."
+              roleRules: "You are free."
+
+
+# ============================================================================================
+# SHARED BUILDING BLOCK EXAMPLES - DO NOT DELETE
+# The three entities below are the reference examples linked from the <summary> docs of
+# QlippothTargetFilter / QlippothTargeting / QlippothDestination in Content.Server/Qlippoth/Actions/QlippothAction.cs.
+# They are admin-spawn only (gatePhases: []) and exist so a developer can read one working copy of every
+# field of these blocks. Keep them compiling against the C# even if you never spawn them.
+# ============================================================================================
+
+# --- QlippothTargetFilter usage example (filter: / usedFilter: / userFilter: / speakerFilter:) ---
+# Filter answers "does this entity count?". Empty filter = everything counts.
+- type: entity
+  id: QlippothExampleFilter
+  parent: QlippothLargeBase
+  name: example - the sieve
+  description: A reference Qlippoth. It only notices certain people. DO NOT DELETE, see QlippothAction.cs.
+  components:
+    - type: Qlippoth
+      gatePhases: []   # admin-spawn only
+    - type: QlippothPresence
+      presenceType: Object
+      objectSize: Large
+    - type: QlippothMovement
+      movementType: Inanimate
+    - type: QlippothActions
+      actions:
+        # USAGE EXAMPLE (filter on an aura): only living, player-controlled, not-yet-corrupted crew below 60 sanity are drained.
+        # excludeHolder is meaningless here (a Large object is never held) and is only shown for completeness.
+        - !type:QlippothAction
+          actionName: exampleFilterAura
+          initiation: !type:ProximityInitiation
+            interval: 2
+            range: 5
+            requiredComponent: Sanity          # coarse pre-filter by component name
+            filter:                            # <-- QlippothTargetFilter
+              onlyAlive: true
+              onlyPlayers: true
+              maxSanity: 60
+              corrupted: false
+              excludeHolder: true
+          results:
+            - !type:DamageSanityResult
+              amount: 2
+              scaled: true
+        # USAGE EXAMPLE (two filters on one initiation): the item used on it AND the user are filtered separately.
+        # whitelist/blacklist are SS14 EntityWhitelist: tags, components, sizes, requireAll.
+        - !type:QlippothAction
+          actionName: exampleFilterFeed
+          initiation: !type:OnInteractUsingInitiation
+            usedFilter:                        # <-- QlippothTargetFilter on the item
+              whitelist: { tags: [Meat] }
+              forbiddenComponents: [Qlippoth]  # never eat another Qlippoth
+            userFilter:                        # <-- QlippothTargetFilter on the player
+              onlyPlayers: true
+              minSanity: 20
+            consumeUsed: true
+          results:
+            - !type:PopupResult
+              message: "The sieve accepts the offering."
+              recipient: Actor
+        # USAGE EXAMPLE (filter on a collision): mobs only, skip other Qlippoths and its own spawned servants, skip dead bodies.
+        - !type:QlippothAction
+          actionName: exampleFilterBump
+          initiation: !type:OnCollideInitiation
+            filter:                            # <-- QlippothTargetFilter
+              requiredComponents: [MobState, Sanity]
+              blacklist: { components: [Qlippoth] }
+              excludeOffspring: true
+              onlyAlive: true
+          cooldown: 2
+          results:
+            - !type:PopupResult
+              message: "The sieve shudders as {$target} touches it."
+              recipient: Everyone
+        # USAGE EXAMPLE (filter as a mid-chain gate): RequireTargetResult stops the chain unless the target passes.
+        - !type:QlippothAction
+          actionName: exampleFilterGate
+          initiation: !type:OnPullInitiation
+          results:
+            - !type:RequireTargetResult
+              filter: { anchored: false, minDamage: 10 }   # <-- QlippothTargetFilter: only already-hurt pullers
+            - !type:DamageSanityResult
+              amount: 10
+
+# --- QlippothTargeting usage example (targeting: on results) ---
+# Targeting answers "who does this result act on?". Default mode Target = whoever the initiation handed over.
+- type: entity
+  id: QlippothExampleTargeting
+  parent: QlippothLargeBase
+  name: example - the chooser
+  description: A reference Qlippoth. Every verb on it aims a different way. DO NOT DELETE, see QlippothAction.cs.
+  components:
+    - type: Qlippoth
+      gatePhases: []   # admin-spawn only
+    - type: QlippothPresence
+      presenceType: Object
+      objectSize: Large
+    - type: QlippothMovement
+      movementType: Inanimate
+    - type: PointLight
+      radius: 3
+      energy: 1
+      color: "#40C0FF"
+    - type: QlippothActions
+      actions:
+        # USAGE EXAMPLE (mode Target, the default): no targeting written -> acts on the player who clicked the verb.
+        - !type:QlippothAction
+          actionName: exampleTargetDefault
+          initiation: !type:VerbInitiation
+            key: touch
+            text: "Touch (Target)"
+          results:
+            - !type:DamageSanityResult
+              amount: 3
+        # USAGE EXAMPLE (mode Self): the Qlippoth acts on itself.
+        - !type:QlippothAction
+          actionName: exampleTargetSelf
+          initiation: !type:VerbInitiation
+            key: glow
+            text: "Glow (Self)"
+          results:
+            - !type:SetLightResult
+              targeting: { mode: Self }        # <-- QlippothTargeting
+              color: "#FF4040"
+              radius: 5
+        # USAGE EXAMPLE (mode InRange + range + maxTargets + filter): at most 2 living mobs within 3 tiles.
+        - !type:QlippothAction
+          actionName: exampleTargetInRange
+          initiation: !type:VerbInitiation
+            key: pulse
+            text: "Pulse (InRange)"
+          cooldown: 3
+          results:
+            - !type:DamageResult
+              damage: { types: { Heat: 3 } }
+              targeting:                       # <-- QlippothTargeting
+                mode: InRange
+                range: 3
+                maxTargets: 2
+                filter: { onlyAlive: true }
+        # USAGE EXAMPLE (mode AroundTarget): flash everyone within 2 tiles of the clicker, not of the Qlippoth.
+        - !type:QlippothAction
+          actionName: exampleTargetAroundTarget
+          initiation: !type:VerbInitiation
+            key: flashAround
+            text: "Flash around you (AroundTarget)"
+          cooldown: 3
+          results:
+            - !type:FlashResult
+              duration: 2
+              targeting: { mode: AroundTarget, range: 2, includeSelf: false }   # <-- QlippothTargeting
+        # USAGE EXAMPLE (mode NearestInRange): whisper only to the closest player.
+        - !type:QlippothAction
+          actionName: exampleTargetNearest
+          initiation: !type:IntervalInitiation
+            interval: 15
+          results:
+            - !type:WhisperToResult
+              message: "You are the closest."
+              targeting: { mode: NearestInRange, range: 8, filter: { onlyPlayers: true } }   # <-- QlippothTargeting
+        # USAGE EXAMPLE (mode RandomInRange): one random mob within 5 tiles shakes.
+        - !type:QlippothAction
+          actionName: exampleTargetRandom
+          initiation: !type:VerbInitiation
+            key: shake
+            text: "Shake someone (RandomInRange)"
+          results:
+            - !type:JitterResult
+              duration: 3
+              targeting: { mode: RandomInRange, range: 5, filter: { onlyMobs: true } }   # <-- QlippothTargeting
+        # USAGE EXAMPLE (mode Actor vs PullPartner): when pulled, stun the puller (Actor) and then throw whoever is attached (PullPartner).
+        - !type:QlippothAction
+          actionName: exampleTargetPull
+          initiation: !type:OnPullInitiation
+          cooldown: 5
+          results:
+            - !type:StunResult
+              duration: 1
+              targeting: { mode: Actor }       # <-- QlippothTargeting
+            - !type:ThrowResult
+              mode: AwayFromSelf
+              distance: 2
+              targeting: { mode: PullPartner } # <-- QlippothTargeting
+        # USAGE EXAMPLE (mode Offspring): spawn servants, then a second verb culls exactly those servants.
+        - !type:QlippothAction
+          actionName: exampleTargetSpawn
+          initiation: !type:VerbInitiation
+            key: spawn
+            text: "Call rats"
+          results:
+            - !type:SpawnMobResult
+              spawnMob: MobRatServant
+              count: 2
+              maxAlive: 4
+              ghostRole: false
+        - !type:QlippothAction
+          actionName: exampleTargetOffspring
+          initiation: !type:VerbInitiation
+            key: cull
+            text: "Dismiss rats (Offspring)"
+          results:
+            - !type:DeleteResult
+              targeting: { mode: Offspring }   # <-- QlippothTargeting
+        # USAGE EXAMPLE (mode QlippothsInRange): make every other Qlippoth within 8 tiles speak.
+        - !type:QlippothAction
+          actionName: exampleTargetQlippoths
+          initiation: !type:VerbInitiation
+            key: chorus
+            text: "Chorus (QlippothsInRange)"
+          results:
+            - !type:SpeakResult
+              message: "..."
+              emote: true
+              targeting: { mode: QlippothsInRange, range: 8 }   # <-- QlippothTargeting
+        # NOTE: mode Holder only resolves on hand-held / worn Qlippoths (QlippothItemBase / QlippothClothingBase). Not shown here.
+
+# --- QlippothDestination usage example (destination: on teleport / spawn results) ---
+# Destination answers "where?". Often combined with targeting: targeting picks WHO moves, destination picks WHERE.
+- type: entity
+  id: QlippothExampleDestination
+  parent: QlippothLargeBase
+  name: example - the doorway
+  description: A reference Qlippoth. It moves things to places. DO NOT DELETE, see QlippothAction.cs.
+  components:
+    - type: Qlippoth
+      gatePhases: []   # admin-spawn only
+    - type: QlippothPresence
+      presenceType: Object
+      objectSize: Large
+    - type: QlippothMovement
+      movementType: Inanimate
+    - type: QlippothActions
+      actions:
+        # USAGE EXAMPLE (mode RandomNearSelf + range): the Qlippoth blinks up to 5 tiles away.
+        - !type:QlippothAction
+          actionName: exampleDestinationBlink
+          initiation: !type:VerbInitiation
+            key: blink
+            text: "Blink (RandomNearSelf)"
+          cooldown: 2
+          results:
+            - !type:TeleportResult
+              targeting: { mode: Self }
+              destination: { mode: RandomNearSelf, range: 5 }   # <-- QlippothDestination
+              effect: EffectVoidBlink
+        # USAGE EXAMPLE (mode RandomOnStation): the clicker is sent somewhere random on the station.
+        - !type:QlippothAction
+          actionName: exampleDestinationBanish
+          initiation: !type:VerbInitiation
+            key: banish
+            text: "Banish me (RandomOnStation)"
+          cooldown: 5
+          results:
+            - !type:TeleportResult
+              targeting: { mode: Target }
+              destination: { mode: RandomOnStation }           # <-- QlippothDestination
+              scatter: 0
+              effect: EffectVoidBlink
+        # USAGE EXAMPLE (mode Target + scatter on a spawn): rats appear around the clicker, not around the Qlippoth.
+        - !type:QlippothAction
+          actionName: exampleDestinationSummon
+          initiation: !type:VerbInitiation
+            key: summon
+            text: "Summon at me (Target)"
+          results:
+            - !type:SpawnMobResult
+              spawnMob: MobRatServant
+              count: 2
+              scatter: 1
+              destination: { mode: Target }                    # <-- QlippothDestination
+              ghostRole: false
+              maxAlive: 4
+        # USAGE EXAMPLE (mode Offset): a fixed offset in tiles from the Qlippoth; offset is also ADDED to every other mode.
+        - !type:QlippothAction
+          actionName: exampleDestinationOffset
+          initiation: !type:VerbInitiation
+            key: mark
+            text: "Leave a mark (Offset)"
+          results:
+            - !type:SpawnItemResult
+              spawnItem: SheetSteel1
+              destination: { mode: Offset, offset: "0, 1" }    # <-- QlippothDestination (Vector2 must be quoted inside { })
+        # USAGE EXAMPLE (mode NearestWithComponent + component): jump next to the closest Q-Gate on the map. Fails (chain stops) if there is none.
+        - !type:QlippothAction
+          actionName: exampleDestinationGate
+          initiation: !type:VerbInitiation
+            key: toGate
+            text: "Go to the gate (NearestWithComponent)"
+          results:
+            - !type:TeleportResult
+              targeting: { mode: Self }
+              destination: { mode: NearestWithComponent, component: QGate }   # <-- QlippothDestination
+            - !type:PopupResult
+              message: "The doorway is gone."
+              recipient: Actor
+        # USAGE EXAMPLE (mode RandomOnGrid on a trigger): when hurt it relocates anywhere on its own grid.
+        - !type:QlippothAction
+          actionName: exampleDestinationFlee
+          initiation: !type:OnDamagedInitiation
+            minDelta: 5
+          cooldown: 10
+          results:
+            - !type:TeleportResult
+              targeting: { mode: Self }
+              destination: { mode: RandomOnGrid }              # <-- QlippothDestination
+        # USAGE EXAMPLE (targeting + destination together): every player within 6 tiles is dragged onto the tile of the Qlippoth.
+        - !type:QlippothAction
+          actionName: exampleDestinationDragIn
+          initiation: !type:VerbInitiation
+            key: dragIn
+            text: "Drag everyone in (Self)"
+          cooldown: 10
+          results:
+            - !type:TeleportResult
+              targeting: { mode: InRange, range: 6, filter: { onlyPlayers: true } }
+              destination: { mode: Self }                      # <-- QlippothDestination
+              scatter: 1
