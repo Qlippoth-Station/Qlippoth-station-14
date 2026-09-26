@@ -1,4 +1,4 @@
-## Qlippoth Entity Names & Descriptions
+﻿## Qlippoth Entity Names & Descriptions
 
 ent-QlippothBase = Qlippoth
     .desc = An anomalous entity from beyond dimensional boundaries.
@@ -48,6 +48,7 @@ containment-market-entry = - {$name} | {$phase}
 ## Action system (generic strings used by initiations / results)
 
 verb-categories-qlippoth = Qlippoth
+verb-categories-qlippoth-admin = Qlippoth (Admin)
 
 qlippoth-ghost-role-servant-name = Qlippoth Servant
 qlippoth-ghost-role-servant-description = A creature spawned or enthralled by a Qlippoth.

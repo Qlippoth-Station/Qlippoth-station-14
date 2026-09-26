@@ -1,4 +1,4 @@
-using System.Linq;
+﻿using System.Linq;
 using Content.Server.AlertLevel;
 using Content.Server.Atmos.EntitySystems;
 using Content.Server.GameTicking;
@@ -29,10 +29,13 @@ using Content.Shared.Speech.Components;
 using Content.Shared.StepTrigger.Components;
 using Content.Shared.StepTrigger.Systems;
 using Content.Shared.Throwing;
+using Content.Shared.Administration;
+using Content.Shared.Database;
 using Content.Shared.Verbs;
 using Content.Shared.Weapons.Melee.Events;
 using Content.Shared.Whitelist;
 using Robust.Shared.Containers;
+using Robust.Shared.Player;
 using Robust.Shared.GameObjects;
 using Robust.Shared.Physics.Events;
 using Robust.Shared.Random;
@@ -50,6 +53,7 @@ namespace Content.Server.Qlippoth
     public sealed partial class QlippothActionInitiationSystem : EntitySystem
     {
         [Dependency] private QlippothActionResultSystem _resultSystem = default!;
+        [Dependency] private Content.Server.Administration.Managers.IAdminManager _adminManager = default!;
         [Dependency] private IGameTiming _timing = default!;
         [Dependency] private IRobustRandom _random = default!;
         [Dependency] private EntityLookupSystem _lookup = default!;
@@ -63,6 +67,11 @@ namespace Content.Server.Qlippoth
         [Dependency] private RoundEndSystem _roundEnd = default!;
 
         public static readonly VerbCategory QlippothVerbCategory = new("verb-categories-qlippoth", null);
+
+        /// <summary>
+        /// Submenu that lists EVERY action on a Qlippoth, for admins only. See OnGetAdminVerbs.
+        /// </summary>
+        public static readonly VerbCategory QlippothAdminVerbCategory = new("verb-categories-qlippoth-admin", null);
 
         /// <summary>
         /// Actual subscriptions to events, happen here.
@@ -119,6 +128,7 @@ namespace Content.Server.Qlippoth
             // interface
             SubscribeLocalEvent<QlippothActionsComponent, GetVerbsEvent<ActivationVerb>>(OnGetActivationVerbs);
             SubscribeLocalEvent<QlippothActionsComponent, GetVerbsEvent<AlternativeVerb>>(OnGetAlternativeVerbs);
+            SubscribeLocalEvent<QlippothActionsComponent, GetVerbsEvent<Verb>>(OnGetAdminVerbs);
             SubscribeLocalEvent<QlippothActionsComponent, ExaminedEvent>(OnExamined);
 
             // holder relays
@@ -773,6 +783,45 @@ namespace Content.Server.Qlippoth
                 };
                 add(verb);
             }
+        }
+
+        /// <summary>
+        /// Admin-only submenu listing every action the Qlippoth has, whatever its initiation is.
+        /// Picking one runs that action's results immediately: the initiation's own Matches check, the cooldown,
+        /// requireState / forbidState, chance and maxFires are ALL skipped, so an aura or a timed action can be
+        /// tested on demand without having to reproduce its trigger.
+        /// The admin counts as the target and the actor, so results that act on "whoever caused this" hit the admin.
+        /// </summary>
+        private void OnGetAdminVerbs(EntityUid uid, QlippothActionsComponent component, GetVerbsEvent<Verb> args)
+        {
+            if (!TryComp<ActorComponent>(args.User, out var actor))
+                return;
+            if (!_adminManager.HasAdminFlag(actor.PlayerSession, AdminFlags.Debug))
+                return;
+
+            var user = args.User;
+            foreach (var action in component.Actions)
+            {
+                var target = action;
+                args.Verbs.Add(new Verb
+                {
+                    Text = $"{target.ActionName} ({target.Initiation.GetType().Name})",
+                    Category = QlippothAdminVerbCategory,
+                    Impact = LogImpact.Medium,
+                    Act = () => ForceAction(uid, target, user),
+                });
+            }
+        }
+
+        /// <summary>
+        /// Runs one action's results right now, skipping every gate the normal dispatch applies.
+        /// Public so admin commands and tests can reuse it. Does not touch the action's cooldown or fire counter.
+        /// </summary>
+        public void ForceAction(EntityUid uid, QlippothAction action, EntityUid actor)
+        {
+            if (!Exists(uid) || !HasComp<QlippothActionsComponent>(uid))
+                return;
+            _resultSystem.ExecuteResults(uid, new List<QlippothAction> { action }, new QlippothVerbEventArgs(actor, action.ActionName));
         }
 
         private void OnExamined(EntityUid uid, QlippothActionsComponent component, ExaminedEvent args)

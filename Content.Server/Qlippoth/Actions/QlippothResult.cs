@@ -1,4 +1,4 @@
-using System.Linq;
+﻿using System.Linq;
 using System.Numerics;
 using Content.Shared.Atmos;
 using Content.Shared.Chat;
@@ -1620,7 +1620,8 @@ namespace Content.Server.Qlippoth
     [DataDefinition]
     public sealed partial class SpeakResult : ProduceResult
     {
-        [DataField(required: true)]
+        /// <summary>Locale key or raw text. Required unless <see cref="Messages"/> is filled instead.</summary>
+        [DataField]
         public string Message { get; set; } = string.Empty;
 
         /// <summary>Pick one at random from these instead of Message (leave message as a fallback).</summary>
@@ -1641,6 +1642,12 @@ namespace Content.Server.Qlippoth
         public override bool Execute(EntityUid uid, QlippothActionResultSystem resultSystem, object? eventArgs = null)
         {
             var key = Messages.Count > 0 ? resultSystem.Random.Pick(Messages) : Message;
+            if (string.IsNullOrEmpty(key))
+            {
+                resultSystem.Sawmill.Warning($"SpeakResult on {uid}: neither message nor messages was set.");
+                return false;
+            }
+
             var target = resultSystem.ResolveTarget(uid, eventArgs);
             var text = Loc.GetString(key, ("target", resultSystem.EntityName(target)), ("self", resultSystem.EntityName(uid)));
             var type = Emote ? InGameICChatType.Emote : Whisper ? InGameICChatType.Whisper : InGameICChatType.Speak;
@@ -1659,9 +1666,11 @@ namespace Content.Server.Qlippoth
     [DataDefinition]
     public sealed partial class WhisperToResult : ProduceResult
     {
-        [DataField(required: true)]
+        /// <summary>Locale key or raw text. Required unless <see cref="Messages"/> is filled instead.</summary>
+        [DataField]
         public string Message { get; set; } = string.Empty;
 
+        /// <summary>Pick one at random from these instead of Message (leave message as a fallback).</summary>
         [DataField]
         public List<string> Messages { get; set; } = new();
 
@@ -1671,6 +1680,12 @@ namespace Content.Server.Qlippoth
         public override bool Execute(EntityUid uid, QlippothActionResultSystem resultSystem, object? eventArgs = null)
         {
             var key = Messages.Count > 0 ? resultSystem.Random.Pick(Messages) : Message;
+            if (string.IsNullOrEmpty(key))
+            {
+                resultSystem.Sawmill.Warning($"WhisperToResult on {uid}: neither message nor messages was set.");
+                return false;
+            }
+
             var any = false;
             foreach (var target in resultSystem.ResolveTargets(uid, eventArgs, Targeting))
                 any |= resultSystem.SendPrivateMessage(target, Loc.GetString(key, ("target", resultSystem.EntityName(target)), ("self", resultSystem.EntityName(uid))));
@@ -3121,6 +3136,253 @@ namespace Content.Server.Qlippoth
         {
             var target = resultSystem.ResolveTarget(uid, eventArgs);
             resultSystem.Sawmill.Info($"[{resultSystem.EntityName(uid)} {uid}] {Message} (target: {resultSystem.EntityName(target)} {target}, args: {QlippothUtil.Unwrap(eventArgs)?.GetType().Name ?? "none"})");
+            return true;
+        }
+    }
+    #endregion
+    #region Debug / test results
+    // -------------------------------------------------------------------------
+    // Small, dependency-free results whose only job is to make an initiation visible in-game while testing.
+    // They do not touch Sanity, Corruption or any other gameplay system, so they work on a bare base entity.
+    // Keep them: the test Qlippoths in Resources/Prototypes/Entities/Qlippoths/qlippoths.yml rely on them.
+    // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// The Qlippoth says out loud the name of the mob that triggered the initiation (the actor), so you can see
+    /// WHO fired the action. Falls back to the initiation's target when the initiation has no actor.
+    /// YAML: - !type:SayActorNameResult
+    /// </summary>
+    [DataDefinition]
+    public sealed partial class SayActorNameResult : ProduceResult
+    {
+        /// <summary>Text around the name. {name} is replaced with the actor's name, {self} with the Qlippoth's name.</summary>
+        [DataField]
+        public string Format { get; set; } = "{name}...";
+
+        /// <summary>Say it as an emote (*it mouths the name*) instead of speech.</summary>
+        [DataField]
+        public bool Emote { get; set; }
+
+        /// <summary>Use the initiation's target instead of the actor (useful for initiations that only carry a target).</summary>
+        [DataField]
+        public bool UseTarget { get; set; }
+
+        public override bool Execute(EntityUid uid, QlippothActionResultSystem resultSystem, object? eventArgs = null)
+        {
+            var who = UseTarget
+                ? resultSystem.ResolveTarget(uid, eventArgs)
+                : resultSystem.ResolveActor(uid, eventArgs) ?? resultSystem.ResolveTarget(uid, eventArgs);
+
+            var text = Format
+                .Replace("{name}", resultSystem.EntityName(who))
+                .Replace("{self}", resultSystem.EntityName(uid));
+
+            resultSystem.Chat.TrySendInGameICMessage(uid, text, Emote ? InGameICChatType.Emote : InGameICChatType.Speak, false, ignoreActionBlocker: true);
+            return true;
+        }
+    }
+
+    /// <summary>
+    /// Turns the Qlippoth's own glow on or off. Called again it flips back, so one action can be used as a visible
+    /// on/off marker while testing. The PointLight component is created on the fly if the entity has none.
+    /// YAML: - !type:ToggleGlowResult
+    /// </summary>
+    [DataDefinition]
+    public sealed partial class ToggleGlowResult : EffectResult
+    {
+        /// <summary>Force a state instead of flipping: true = always on, false = always off.</summary>
+        [DataField]
+        public bool? Enabled { get; set; }
+
+        [DataField]
+        public Color Color { get; set; } = Color.FromHex("#9B30FF");
+
+        [DataField]
+        public float Radius { get; set; } = 3f;
+
+        [DataField]
+        public float Energy { get; set; } = 2f;
+
+        /// <summary>Who lights up. Default: the Qlippoth itself.</summary>
+        [DataField]
+        public QlippothTargeting Targeting { get; set; } = QlippothTargeting.SelfOnly();
+
+        public override bool Execute(EntityUid uid, QlippothActionResultSystem resultSystem, object? eventArgs = null)
+        {
+            var any = false;
+            foreach (var target in resultSystem.ResolveTargets(uid, eventArgs, Targeting))
+            {
+                var light = resultSystem.PointLight.EnsureLight(target);
+                var on = Enabled ?? !light.Enabled;
+
+                if (on)
+                {
+                    resultSystem.PointLight.SetColor(target, Color, light);
+                    resultSystem.PointLight.SetRadius(target, Radius, light);
+                    resultSystem.PointLight.SetEnergy(target, Energy, light);
+                }
+
+                resultSystem.PointLight.SetEnabled(target, on, light);
+                any = true;
+            }
+            return any;
+        }
+    }
+
+    /// <summary>
+    /// Plays the default Qlippoth sound (the one the base entities make when they are pulled), with no configuration
+    /// needed. Same as PlaySoundResult but every field has a working default, so it is one line in YAML.
+    /// YAML: - !type:TestSoundResult
+    /// </summary>
+    [DataDefinition]
+    public sealed partial class TestSoundResult : ProduceResult
+    {
+        [DataField]
+        public string SoundPath { get; set; } = "/Audio/Qlippoth/qlippoth.ogg";
+
+        [DataField]
+        public float Volume { get; set; } = 3f;
+
+        public override bool Execute(EntityUid uid, QlippothActionResultSystem resultSystem, object? eventArgs = null)
+        {
+            resultSystem.Audio.PlayPvs(new SoundPathSpecifier(SoundPath), uid, AudioParams.Default.WithVolume(Volume));
+            return true;
+        }
+    }
+
+    /// <summary>
+    /// Sends a line straight into the chat window of the mob that triggered the initiation - only that player sees it
+    /// ("the voice in your head"). WhisperToResult does the same thing for a resolved target; this one defaults to the
+    /// actor and has a default message, so it is usable with no fields at all.
+    /// YAML: - !type:MindMessageResult
+    ///         message: "It knows your name."
+    /// </summary>
+    [DataDefinition]
+    public sealed partial class MindMessageResult : ProduceResult
+    {
+        /// <summary>Locale key or raw text. {self} is replaced with the Qlippoth's name, {name} with the reader's own name.</summary>
+        [DataField]
+        public string Message { get; set; } = "Something looks back at you.";
+
+        /// <summary>Pick one of these at random instead of message.</summary>
+        [DataField]
+        public List<string> Messages { get; set; } = new();
+
+        /// <summary>Send to the initiation's target instead of the actor. Also used as fallback when there is no actor.</summary>
+        [DataField]
+        public bool UseTarget { get; set; }
+
+        public override bool Execute(EntityUid uid, QlippothActionResultSystem resultSystem, object? eventArgs = null)
+        {
+            var reader = UseTarget
+                ? resultSystem.ResolveTarget(uid, eventArgs)
+                : resultSystem.ResolveActor(uid, eventArgs) ?? resultSystem.ResolveTarget(uid, eventArgs);
+
+            var key = Messages.Count > 0 ? resultSystem.Random.Pick(Messages) : Message;
+            var text = Loc.GetString(key, ("self", resultSystem.EntityName(uid)), ("name", resultSystem.EntityName(reader)));
+            return resultSystem.SendPrivateMessage(reader, text);
+        }
+    }
+
+    /// <summary>
+    /// DEBUG. Same line as <see cref="DebugTraceResult"/> but sent as a station-wide announcement instead of a popup,
+    /// so an initiation can be verified from anywhere on the map (no need to stand next to the Qlippoth).
+    /// Needs no configuration; it reads the action and initiation names itself.
+    /// YAML: - !type:DebugAnnounceResult
+    /// </summary>
+    [DataDefinition]
+    public sealed partial class DebugAnnounceResult : EventResult
+    {
+        /// <summary>Extra text appended after the trace line, e.g. to tell two test Qlippoths apart.</summary>
+        [DataField]
+        public string Note { get; set; } = string.Empty;
+
+        /// <summary>Also name the Qlippoth and its target in the announcement.</summary>
+        [DataField]
+        public bool Verbose { get; set; } = true;
+
+        [DataField]
+        public string Sender { get; set; } = "qlippoth-announcement-sender";
+
+        [DataField]
+        public Color Color { get; set; } = Color.FromHex("#9B30FF");
+
+        /// <summary>Default false: a station-wide chime on every test would get loud fast.</summary>
+        [DataField]
+        public bool PlaySound { get; set; }
+
+        /// <summary>Also write the same line to the server log (sawmill "qlippoth").</summary>
+        [DataField]
+        public bool Log { get; set; } = true;
+
+        public override bool Execute(EntityUid uid, QlippothActionResultSystem resultSystem, object? eventArgs = null)
+        {
+            var action = resultSystem.CurrentAction;
+            var actionName = action?.ActionName ?? "unknown";
+            var initiation = action?.Initiation.GetType().Name ?? "unknown";
+            var text = $"\"{actionName}\" INITIATION, TRIGGERED \"{initiation}\" RESULT";
+
+            var target = resultSystem.ResolveTarget(uid, eventArgs);
+            if (Verbose)
+                text += $" [{resultSystem.EntityName(uid)} -> {resultSystem.EntityName(target)}]";
+            if (!string.IsNullOrEmpty(Note))
+                text += $" {Note}";
+
+            resultSystem.Chat.DispatchGlobalAnnouncement(text, Loc.GetString(Sender), PlaySound, null, Color);
+
+            if (Log)
+                resultSystem.Sawmill.Info($"[{resultSystem.EntityName(uid)} {uid}] {text}");
+
+            return true;
+        }
+    }
+
+    /// <summary>
+    /// DEBUG. Shows a popup naming the action and the initiation that just fired, in the form
+    /// "actionName" INITIATION, TRIGGERED "OnInteractHandInitiation" RESULT.
+    /// Both names are read from the action being executed (QlippothActionResultSystem.CurrentAction), so it needs no
+    /// configuration: drop it into any action's results list to see in-game whether that initiation reached its results.
+    /// YAML: - !type:DebugTraceResult
+    /// </summary>
+    [DataDefinition]
+    public sealed partial class DebugTraceResult : EffectResult
+    {
+        /// <summary>Who sees the popup. Default: everyone nearby, so you can test without being the actor.</summary>
+        [DataField]
+        public QlippothPopupRecipient Recipient { get; set; } = QlippothPopupRecipient.Everyone;
+
+        [DataField]
+        public PopupType Type { get; set; } = PopupType.SmallCaution;
+
+        /// <summary>Also write the same line to the server log (sawmill "qlippoth").</summary>
+        [DataField]
+        public bool Log { get; set; } = true;
+
+        public override bool Execute(EntityUid uid, QlippothActionResultSystem resultSystem, object? eventArgs = null)
+        {
+            var action = resultSystem.CurrentAction;
+            var actionName = action?.ActionName ?? "unknown";
+            var initiation = action?.Initiation.GetType().Name ?? "unknown";
+            var text = $"\"{actionName}\" INITIATION, TRIGGERED \"{initiation}\" RESULT";
+
+            var target = resultSystem.ResolveTarget(uid, eventArgs);
+            switch (Recipient)
+            {
+                case QlippothPopupRecipient.Target:
+                    resultSystem.Popup.PopupEntity(text, target, target, Type);
+                    break;
+                case QlippothPopupRecipient.Actor:
+                    if (resultSystem.ResolveActor(uid, eventArgs) is { } actor)
+                        resultSystem.Popup.PopupEntity(text, target, actor, Type);
+                    break;
+                case QlippothPopupRecipient.Everyone:
+                    resultSystem.Popup.PopupEntity(text, uid, Type);
+                    break;
+            }
+
+            if (Log)
+                resultSystem.Sawmill.Info($"[{resultSystem.EntityName(uid)} {uid}] {text} (target: {resultSystem.EntityName(target)} {target})");
+
             return true;
         }
     }

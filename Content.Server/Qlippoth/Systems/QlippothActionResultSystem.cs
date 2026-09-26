@@ -1,4 +1,4 @@
-using System.Linq;
+﻿using System.Linq;
 using System.Numerics;
 using Content.Server.AlertLevel;
 using Content.Server.Atmos.EntitySystems;   // AtmosphereSystem, FlammableSystem
@@ -127,6 +127,13 @@ namespace Content.Server.Qlippoth
 
         public ISawmill Sawmill = default!;
 
+        /// <summary>
+        /// The action whose results are running right now, set by ExecuteResults and cleared when it is done.
+        /// Results normally do not need it; it exists so debug results (DebugTraceResult) can name the action and
+        /// its initiation without every YAML entry repeating them.
+        /// </summary>
+        public QlippothAction? CurrentAction;
+
         public override void Initialize()
         {
             base.Initialize();
@@ -158,12 +165,20 @@ namespace Content.Server.Qlippoth
         {
             foreach (var action in actions)
             {
-                foreach (var result in action.Results)
+                CurrentAction = action;
+                try
                 {
-                    if (!Exists(uid))
-                        return;
-                    if (!result.Execute(uid, this, eventArgs) && !action.ContinueOnFailure)
-                        break;
+                    foreach (var result in action.Results)
+                    {
+                        if (!Exists(uid))
+                            return;
+                        if (!result.Execute(uid, this, eventArgs) && !action.ContinueOnFailure)
+                            break;
+                    }
+                }
+                finally
+                {
+                    CurrentAction = null;
                 }
             }
         }
