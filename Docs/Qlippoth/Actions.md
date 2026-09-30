@@ -160,4 +160,4 @@ Where something goes or spawns. Modes: `Self`, `Target`, `Actor`, `RandomNearSel
 ### Flow (control the chain)
 `ChanceResult`, `RequireTargetResult`, `RequireStateResult`, `RequireSituationResult`, `RandomResult` (weighted pick), `GroupResult`, `ForEachTargetResult`, `RepeatResult`, `ChainResult`, `DelayResult`, `CancelDelayResult`, `ResetCooldownResult`, `StopResult`, `LogResult`.
 
-See `QlippothShowcaseIdol` in `Resources/Prototypes/Entities/Qlippoths/qlippoths.yml` for an entity that uses most of these together.
+See `ResultShowcaseIdol` (every result) and `InitiationShowcaseIdol` (every initiation) in `Resources/Prototypes/Entities/Qlippoths/qlippoths.yml`.
