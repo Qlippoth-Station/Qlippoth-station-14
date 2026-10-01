@@ -1,8 +1,11 @@
 using System.Linq;
 using System.Numerics;
+using Content.Server.Atmos.EntitySystems;
 using Content.Server.Chat.Systems;
 using Content.Server.Popups;
+using Content.Shared.Atmos;
 using Content.Shared.CCVar;
+using Content.Shared.Gravity;
 using Content.Shared.DoAfter;
 using Content.Shared.Eye;
 using Content.Shared.Interaction;
@@ -49,6 +52,7 @@ public sealed partial class QGateSystem : EntitySystem
     [Dependency] private PopupSystem _popup = default!;
     [Dependency] private SharedAudioSystem _audio = default!;
     [Dependency] private QlippothActionInitiationSystem _initiation = default!;
+    [Dependency] private AtmosphereSystem _atmosphere = default!;
 
     private readonly Dictionary<EntityUid, RiftDungeon> _dungeonsByGate = new();
     private readonly Dictionary<EntityUid, EntityUid> _returnPortalsByGate = new();
@@ -369,7 +373,8 @@ public sealed partial class QGateSystem : EntitySystem
 
     private (RiftDungeon Dungeon, int ObjectiveCount) CreateRiftDungeon(QlippothDungeon definition, EntProtoId? qlippothPrototype, EntityUid gate)
     {
-        var mapId = _mapManager.CreateMap();
+        var mapUid = _maps.CreateMap(out var mapId);
+        ApplyRiftEnvironment(mapUid);
         var gridEntity = _mapManager.CreateGridEntity(mapId);
         var gridUid = gridEntity.Owner;
 
@@ -384,6 +389,26 @@ public sealed partial class QGateSystem : EntitySystem
 
         var entry = new MapCoordinates(layout.Entry, mapId);
         return (new RiftDungeon(mapId, entry, qlippoth), layout.ObjectiveCount);
+    }
+
+    /// <summary>
+    /// Gives a freshly created rift map breathable air and gravity.
+    /// Without this the map falls back to <see cref="GasMixture.SpaceGas"/> and no gravity, so the crew suffocates
+    /// and floats the moment they step through the gate.
+    /// This is map atmosphere, not a simulated grid atmosphere: one mixture for the whole rift, no pressure or leaks.
+    /// Per-dungeon atmosphere (vacuum rifts, plasma floods) belongs in <see cref="QlippothDungeon"/> later.
+    /// </summary>
+    private void ApplyRiftEnvironment(EntityUid mapUid)
+    {
+        var moles = new float[Atmospherics.AdjustedNumberOfGases];
+        moles[(int) Gas.Oxygen] = 21.824779f;
+        moles[(int) Gas.Nitrogen] = 82.10312f;
+        _atmosphere.SetMapAtmosphere(mapUid, false, new GasMixture(moles, Atmospherics.T20C));
+
+        var gravity = EnsureComp<GravityComponent>(mapUid);
+        gravity.Enabled = true;
+        gravity.Inherent = true;
+        Dirty(mapUid, gravity);
     }
 
     // Helpers QlippothDungeon implementations build with (they are plain data classes and cannot spawn on their own).
