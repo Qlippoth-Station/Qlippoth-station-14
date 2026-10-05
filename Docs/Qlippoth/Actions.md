@@ -18,7 +18,7 @@ Every Qlippoth carries a `QlippothActions` component with a list of actions. One
 
 Results run in order. A result returns `false` when it could not do its job (no valid target, welded door, chance missed), which stops the remaining results of that action unless the action has `continueOnFailure: true`. Flow results use this as a gate. `StopResult` is the hard stop: it ends the list (and any `GroupResult` / `RepeatResult` / `ForEachTargetResult` block it sits in) even with `continueOnFailure`.
 
-Debugging: `traceResults: true` on the `QlippothActions` component sends the actor one chat line per fired action, e.g. `[test04Hazards] DebugTrace ✓ · Ignite ✓ · Electrocute ✓ · InjectReagent ✗`, and logs the same line. ✗ means the result found nothing to act on (missing component, no target in range, chance missed), ■ marks a `StopResult`.
+Debugging: `traceResults: true` on the `QlippothActions` component sends the actor one chat line per fired action and logs the same line, e.g. `[test04Hazards] DebugTrace ✓ · Ignite ✓ (→ Urist; Urist now 3 stacks, on fire=True) · Electrocute ✓ (→ Urist) · InjectReagent ✗ (Urist has no bloodstream)`. ✓ means the result did its job, ✗ that it ran but had nothing to do or failed its check, ■ marks a `StopResult`, and 💥 means the result threw an exception (the action continues with the next result and the exception goes to the server log). The bracket after each mark is the detail the result or a helper attached with `TraceDetail(...)`: resolved targets, before→after numbers, or the reason for a ✗. When you write a new result, call `resultSystem.TraceDetail` on every early return and once on success so a tester can tell "worked" from "did nothing" without reading the code.
 
 ## Shared building blocks
 

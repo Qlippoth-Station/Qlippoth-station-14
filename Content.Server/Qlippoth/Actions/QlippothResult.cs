@@ -133,7 +133,10 @@ namespace Content.Server.Qlippoth
             var any = false;
             foreach (var target in resultSystem.ResolveTargets(uid, eventArgs, Targeting))
             {
+                resultSystem.QlippothEntityManager.TryGetComponent<Content.Shared.Qlippoth.Components.SanityComponent>(target, out var sanity);
+                var before = sanity?.CurrentSanity;
                 resultSystem.Sanity.DamageSanity(target, Amount, Scaled);
+                resultSystem.TraceDetail(sanity != null ? $"sanity {before:0.#}→{sanity.CurrentSanity:0.#}" : $"{resultSystem.EntityName(target)} has no Sanity");
                 any = true;
             }
             return any;
@@ -179,12 +182,19 @@ namespace Content.Server.Qlippoth
         public override bool Execute(EntityUid uid, QlippothActionResultSystem resultSystem, object? eventArgs = null)
         {
             if (Chance < 1f && !resultSystem.Random.Prob(Chance))
+            {
+                resultSystem.TraceDetail($"chance {Chance:P0} missed");
                 return false;
+            }
 
             var profile = new CorruptionProfile(Duration, Severity, SanityDrainPerSecond, PulseInterval, SpreadChance, SpreadRadius);
             var any = false;
             foreach (var target in resultSystem.ResolveTargets(uid, eventArgs, Targeting))
-                any |= resultSystem.Corruption.ApplyCorruption(target, uid, profile);
+            {
+                var applied = resultSystem.Corruption.ApplyCorruption(target, uid, profile);
+                resultSystem.TraceDetail(applied ? $"corrupted {resultSystem.EntityName(target)} for {Duration:0.#} s" : $"{resultSystem.EntityName(target)} refused corruption");
+                any |= applied;
+            }
             return any;
         }
     }
@@ -322,8 +332,10 @@ namespace Content.Server.Qlippoth
                 if (tile == null)
                 {
                     resultSystem.Sawmill.Debug($"ReleaseGasResult: no tile mixture under {at}");
+                    resultSystem.TraceDetail("no atmosphere on this tile (space / off-grid)");
                     continue;
                 }
+                var before = tile.TotalMoles;
 
                 var mixture = new GasMixture(volume: 1f) { Temperature = Temperature };
                 if (Gases.Count > 0)
@@ -335,6 +347,7 @@ namespace Content.Server.Qlippoth
                     mixture.SetMoles(GasType, Moles);
 
                 resultSystem.Atmosphere.Merge(tile, mixture);
+                resultSystem.TraceDetail($"tile {before:0.##} → {tile.TotalMoles:0.##} mol");
                 any = true;
             }
             return any;
@@ -531,8 +544,12 @@ namespace Content.Server.Qlippoth
         public override bool Execute(EntityUid uid, QlippothActionResultSystem resultSystem, object? eventArgs = null)
         {
             if (QlippothUtil.Unwrap(eventArgs) is not QlippothHolderDamagedEventArgs args)
+            {
+                resultSystem.TraceDetail("needs an OnHolderDamaged event");
                 return false;
+            }
 
+            resultSystem.TraceDetail($"negated {args.Damage.Damage.GetTotal():0.#} damage");
             args.Damage.Damage = new DamageSpecifier();
             return true;
         }
@@ -550,8 +567,12 @@ namespace Content.Server.Qlippoth
         public override bool Execute(EntityUid uid, QlippothActionResultSystem resultSystem, object? eventArgs = null)
         {
             if (QlippothUtil.Unwrap(eventArgs) is not QlippothHolderDamagedEventArgs args)
+            {
+                resultSystem.TraceDetail("needs an OnHolderDamaged event");
                 return false;
+            }
 
+            resultSystem.TraceDetail($"{args.Damage.Damage.GetTotal():0.#} × {Multiplier:0.##}");
             args.Damage.Damage = args.Damage.Damage * Multiplier;
             return true;
         }
@@ -569,8 +590,12 @@ namespace Content.Server.Qlippoth
         public override bool Execute(EntityUid uid, QlippothActionResultSystem resultSystem, object? eventArgs = null)
         {
             if (QlippothUtil.Unwrap(eventArgs) is not QlippothMeleeHitEventArgs args || Damage.Empty)
+            {
+                resultSystem.TraceDetail(Damage.Empty ? "damage is empty" : "needs an OnMeleeHit / OnSelfMeleeHit event");
                 return false;
+            }
 
+            resultSystem.TraceDetail($"+{Damage.GetTotal():0.#} bonus on the hit");
             args.Hit.BonusDamage += Damage;
             return true;
         }
@@ -589,8 +614,12 @@ namespace Content.Server.Qlippoth
         public override bool Execute(EntityUid uid, QlippothActionResultSystem resultSystem, object? eventArgs = null)
         {
             if (QlippothUtil.Unwrap(eventArgs) is not QlippothAttackedEventArgs args || Damage.Empty)
+            {
+                resultSystem.TraceDetail(Damage.Empty ? "damage is empty" : "needs an OnAttacked event");
                 return false;
+            }
 
+            resultSystem.TraceDetail($"+{Damage.GetTotal():0.#} bonus on the incoming hit");
             args.Attack.BonusDamage += Damage;
             return true;
         }
@@ -688,6 +717,7 @@ namespace Content.Server.Qlippoth
                 if (resultSystem.HoldDoor(airlock.Owner, Mode, Duration, actor))
                     count++;
             }
+            resultSystem.TraceDetail(count > 0 ? $"{Mode} {count} airlock(s) within {Range:0.#} for {Duration:0.#} s" : $"no airlock within {Range:0.#} tiles");
 
             if (Message != null && actor != null)
                 resultSystem.Popup.PopupEntity(Loc.GetString(Message, ("count", count)), actor.Value, actor.Value);
@@ -711,7 +741,10 @@ namespace Content.Server.Qlippoth
             foreach (var target in resultSystem.ResolveTargets(uid, eventArgs, Targeting))
             {
                 if (!resultSystem.QlippothEntityManager.HasComponent<DoorBoltComponent>(target))
+                {
+                    resultSystem.TraceDetail($"{resultSystem.EntityName(target)} has no bolts");
                     continue;
+                }
                 resultSystem.SetDoorBolts(target, Down);
                 any = true;
             }
@@ -1085,8 +1118,12 @@ namespace Content.Server.Qlippoth
             foreach (var target in resultSystem.ResolveTargets(uid, eventArgs, Targeting))
             {
                 if (!resultSystem.QlippothEntityManager.TryGetComponent<Content.Shared.Atmos.Components.FlammableComponent>(target, out var flammable))
+                {
+                    resultSystem.TraceDetail($"{resultSystem.EntityName(target)} is not Flammable");
                     continue;
+                }
                 resultSystem.Flammable.AdjustFireStacks(target, FireStacks, flammable, ignite: true);
+                resultSystem.TraceDetail($"{resultSystem.EntityName(target)} now {flammable.FireStacks:0.#} stacks, on fire={flammable.OnFire}");
                 any = true;
             }
             return any;
@@ -1106,7 +1143,11 @@ namespace Content.Server.Qlippoth
             foreach (var target in resultSystem.ResolveTargets(uid, eventArgs, Targeting))
             {
                 if (!resultSystem.QlippothEntityManager.TryGetComponent<Content.Shared.Atmos.Components.FlammableComponent>(target, out var flammable))
+                {
+                    resultSystem.TraceDetail($"{resultSystem.EntityName(target)} is not Flammable");
                     continue;
+                }
+                resultSystem.TraceDetail(flammable.OnFire ? $"{resultSystem.EntityName(target)} put out" : $"{resultSystem.EntityName(target)} was not burning");
                 resultSystem.Flammable.Extinguish(target, flammable);
                 any = true;
             }
@@ -1157,9 +1198,14 @@ namespace Content.Server.Qlippoth
             var any = false;
             foreach (var target in resultSystem.ResolveTargets(uid, eventArgs, Targeting))
             {
-                if (!resultSystem.QlippothEntityManager.HasComponent<Content.Shared.Qlippoth.Components.SanityComponent>(target))
+                if (!resultSystem.QlippothEntityManager.TryGetComponent<Content.Shared.Qlippoth.Components.SanityComponent>(target, out var sanity))
+                {
+                    resultSystem.TraceDetail($"{resultSystem.EntityName(target)} has no Sanity");
                     continue;
+                }
+                var before = sanity.CurrentSanity;
                 resultSystem.Sanity.RestoreSanity(target, Amount);
+                resultSystem.TraceDetail($"sanity {before:0.#}→{sanity.CurrentSanity:0.#}");
                 any = true;
             }
             return any;
@@ -1182,7 +1228,11 @@ namespace Content.Server.Qlippoth
             foreach (var target in resultSystem.ResolveTargets(uid, eventArgs, Targeting))
             {
                 if (!resultSystem.QlippothEntityManager.TryGetComponent<Content.Shared.Qlippoth.Components.SanityComponent>(target, out var sanity))
+                {
+                    resultSystem.TraceDetail($"{resultSystem.EntityName(target)} has no Sanity");
                     continue;
+                }
+                resultSystem.TraceDetail($"drain ×{sanity.DrainMultiplier:0.##}→×{Multiplier:0.##}");
                 sanity.DrainMultiplier = Multiplier;
                 resultSystem.QlippothEntityManager.Dirty(target, sanity);
                 any = true;
@@ -1204,7 +1254,10 @@ namespace Content.Server.Qlippoth
             foreach (var target in resultSystem.ResolveTargets(uid, eventArgs, Targeting))
             {
                 if (!resultSystem.QlippothEntityManager.HasComponent<Content.Shared.Qlippoth.Components.QlippothCorruptionComponent>(target))
+                {
+                    resultSystem.TraceDetail($"{resultSystem.EntityName(target)} is not corrupted");
                     continue;
+                }
                 resultSystem.Corruption.RemoveCorruption(target);
                 any = true;
             }
@@ -1231,8 +1284,13 @@ namespace Content.Server.Qlippoth
             foreach (var target in resultSystem.ResolveTargets(uid, eventArgs, Targeting))
             {
                 if (!resultSystem.QlippothEntityManager.HasComponent<Content.Shared.Body.Components.BloodstreamComponent>(target))
+                {
+                    resultSystem.TraceDetail($"{resultSystem.EntityName(target)} has no bloodstream");
                     continue;
-                any |= resultSystem.Bloodstream.TryAddToBloodstream(target, new Solution(Reagent, Amount));
+                }
+                var injected = resultSystem.Bloodstream.TryAddToBloodstream(target, new Solution(Reagent, Amount));
+                resultSystem.TraceDetail(injected ? $"{Amount:0.#}u {Reagent} into {resultSystem.EntityName(target)}" : $"{resultSystem.EntityName(target)}'s bloodstream refused it");
+                any |= injected;
             }
             return any;
         }
@@ -1423,7 +1481,11 @@ namespace Content.Server.Qlippoth
             foreach (var target in resultSystem.ResolveTargets(uid, eventArgs, Targeting))
             {
                 if (!resultSystem.PointLight.TryGetLight(target, out _))
+                {
+                    resultSystem.TraceDetail($"{resultSystem.EntityName(target)} has no PointLight");
                     continue;
+                }
+                resultSystem.TraceDetail($"light{(Enabled != null ? $" {(Enabled.Value ? "on" : "off")}" : "")}{(Color != null ? $" {Color.Value.ToHex()}" : "")}{(Radius != null ? $" r{Radius.Value:0.#}" : "")}{(Energy != null ? $" e{Energy.Value:0.#}" : "")}");
                 if (Enabled != null)
                     resultSystem.PointLight.SetEnabled(target, Enabled.Value);
                 if (Color != null)
@@ -1470,7 +1532,11 @@ namespace Content.Server.Qlippoth
             foreach (var target in resultSystem.ResolveTargets(uid, eventArgs, Targeting))
             {
                 if (!resultSystem.QlippothEntityManager.TryGetComponent<Content.Shared.Light.Components.PoweredLightComponent>(target, out var light))
+                {
+                    resultSystem.TraceDetail($"{resultSystem.EntityName(target)} is not a PoweredLight");
                     continue;
+                }
+                resultSystem.TraceDetail($"{Mode} {resultSystem.EntityName(target)}");
                 switch (Mode)
                 {
                     case QlippothPoweredLightMode.Off:
@@ -2171,7 +2237,10 @@ namespace Content.Server.Qlippoth
             {
                 foreach (var mixture in resultSystem.TileMixturesAround(target, Radius))
                 {
+                    var before = mixture.Temperature;
                     mixture.Temperature = Absolute ?? Math.Max(Atmospherics.TCMB, mixture.Temperature + Delta);
+                    if (!any)
+                        resultSystem.TraceDetail($"tile {before:0}K → {mixture.Temperature:0}K");
                     any = true;
                 }
             }
@@ -2226,9 +2295,18 @@ namespace Content.Server.Qlippoth
                 foreach (var mixture in resultSystem.TileMixturesAround(target, Radius))
                 {
                     if (Gas == null)
+                    {
+                        if (!any)
+                            resultSystem.TraceDetail($"tile cleared ({mixture.TotalMoles:0.##} mol removed)");
                         mixture.Clear();
+                    }
                     else
-                        mixture.AdjustMoles(Gas.Value, -Math.Min(Moles, mixture.GetMoles(Gas.Value)));
+                    {
+                        var before = mixture.GetMoles(Gas.Value);
+                        mixture.AdjustMoles(Gas.Value, -Math.Min(Moles, before));
+                        if (!any)
+                            resultSystem.TraceDetail($"{Gas.Value} {before:0.##} → {mixture.GetMoles(Gas.Value):0.##} mol");
+                    }
                     any = true;
                 }
             }
@@ -2827,7 +2905,9 @@ namespace Content.Server.Qlippoth
 
         public override bool Execute(EntityUid uid, QlippothActionResultSystem resultSystem, object? eventArgs = null)
         {
-            return resultSystem.Random.Prob(Chance);
+            var passed = resultSystem.Random.Prob(Chance);
+            resultSystem.TraceDetail($"{Chance:P0} roll {(passed ? "passed" : "failed")}");
+            return passed;
         }
     }
 
@@ -2847,8 +2927,9 @@ namespace Content.Server.Qlippoth
 
         public override bool Execute(EntityUid uid, QlippothActionResultSystem resultSystem, object? eventArgs = null)
         {
-            var any = resultSystem.ResolveTargets(uid, eventArgs, Targeting).Any(t => resultSystem.PassesFilter(uid, t, Filter));
-            return any != Not;
+            var matching = resultSystem.ResolveTargets(uid, eventArgs, Targeting).Count(t => resultSystem.PassesFilter(uid, t, Filter));
+            resultSystem.TraceDetail($"{matching} pass the filter{(Not ? ", inverted" : "")}");
+            return (matching > 0) != Not;
         }
     }
 
@@ -2888,6 +2969,7 @@ namespace Content.Server.Qlippoth
             }
             if (Value == null && Min == null && Max == null)
                 ok = current != null;
+            resultSystem.TraceDetail($"{Key}={current ?? "(unset)"}{(Value != null ? $", want {Value}" : "")}{(Not ? ", inverted" : "")}");
             return ok != Not;
         }
     }
@@ -2938,12 +3020,15 @@ namespace Content.Server.Qlippoth
                 return false;
 
             var roll = resultSystem.Random.NextFloat() * total;
-            foreach (var option in Options)
+            for (var i = 0; i < Options.Count; i++)
             {
-                roll -= Math.Max(0f, option.Weight);
-                if (roll <= 0f)
-                    return option.Result.Execute(uid, resultSystem, eventArgs);
+                roll -= Math.Max(0f, Options[i].Weight);
+                if (roll > 0f)
+                    continue;
+                resultSystem.TraceDetail($"picked option {i + 1}/{Options.Count}: {Options[i].Result.GetType().Name}");
+                return Options[i].Result.Execute(uid, resultSystem, eventArgs);
             }
+            resultSystem.TraceDetail($"picked option {Options.Count}/{Options.Count}: {Options[^1].Result.GetType().Name}");
             return Options[^1].Result.Execute(uid, resultSystem, eventArgs);
         }
     }

@@ -142,6 +142,49 @@ namespace Content.Server.Qlippoth
         /// </summary>
         public bool StopRequested;
 
+        // traceResults support: details the current result (or a helper it calls) wants on the trace line.
+        private bool _tracing;
+        private List<string> _traceDetails = new();
+
+        /// <summary>
+        /// Attach a short note to the trace line of the result that is running ("sanity 95→90", "no door within 6").
+        /// No-op unless the Qlippoth has traceResults, so results and helpers can call it freely.
+        /// </summary>
+        public void TraceDetail(string detail)
+        {
+            if (_tracing)
+                _traceDetails.Add(detail);
+        }
+
+        /// <summary>"Urist McHands" / "3: Urist, mouse, bread" / "5: a, b, c +2" for the trace line.</summary>
+        public string DescribeEntities(IReadOnlyList<EntityUid> entities)
+        {
+            if (entities.Count == 1)
+                return EntityName(entities[0]);
+            var shown = string.Join(", ", entities.Take(3).Select(EntityName));
+            return entities.Count > 3 ? $"{entities.Count}: {shown} +{entities.Count - 3}" : $"{entities.Count}: {shown}";
+        }
+
+        private static string DescribeTargeting(QlippothTargeting targeting)
+        {
+            var text = targeting.Mode.ToString();
+            if (targeting.Mode is QlippothTargetMode.InRange or QlippothTargetMode.RandomInRange or QlippothTargetMode.NearestInRange
+                or QlippothTargetMode.QlippothsInRange or QlippothTargetMode.AroundTarget)
+                text += $" {targeting.Range:0.#} tiles";
+            var filter = targeting.Filter;
+            if (filter.RequiredComponent != null)
+                text += $", needs {filter.RequiredComponent}";
+            if (filter.RequiredComponents.Count > 0)
+                text += $", needs {string.Join("+", filter.RequiredComponents)}";
+            if (filter.OnlyMobs)
+                text += ", mobs only";
+            if (filter.OnlyPlayers)
+                text += ", players only";
+            if (filter.OnlyAlive)
+                text += ", alive only";
+            return text;
+        }
+
         public override void Initialize()
         {
             base.Initialize();
@@ -173,35 +216,65 @@ namespace Content.Server.Qlippoth
         {
             var trace = TryComp<QlippothActionsComponent>(uid, out var actionsComp) && actionsComp.TraceResults;
 
-            foreach (var action in actions)
+            // ChainResult re-enters this method from inside a result; keep the outer action's bookkeeping intact.
+            var outerAction = CurrentAction;
+            var outerStop = StopRequested;
+            var outerTracing = _tracing;
+            var outerDetails = _traceDetails;
+            _tracing = trace;
+
+            try
             {
-                CurrentAction = action;
-                StopRequested = false;
-                var traceParts = trace ? new List<string>() : null;
-                try
+                foreach (var action in actions)
                 {
+                    CurrentAction = action;
+                    StopRequested = false;
+                    var traceParts = trace ? new List<string>() : null;
+
                     foreach (var result in action.Results)
                     {
                         if (!Exists(uid))
                             return;
 
-                        var ok = result.Execute(uid, this, eventArgs);
-                        traceParts?.Add($"{ResultLabel(result)} {(StopRequested ? "■" : ok ? "✓" : "✗")}");
+                        _traceDetails = new List<string>();
+                        bool ok;
+                        var threw = false;
+                        try
+                        {
+                            ok = result.Execute(uid, this, eventArgs);
+                        }
+                        catch (Exception e)
+                        {
+                            // One broken result must not take the whole action (or the event handler above it) down.
+                            Sawmill.Error($"[{EntityName(uid)} {uid}] {action.ActionName}: {ResultLabel(result)} threw {e}");
+                            _traceDetails.Add($"threw {e.GetType().Name}: {e.Message}");
+                            ok = false;
+                            threw = true;
+                        }
+
+                        if (traceParts != null)
+                        {
+                            var mark = StopRequested ? "■" : threw ? "💥" : ok ? "✓" : "✗";
+                            var detail = _traceDetails.Count > 0 ? $" ({string.Join("; ", _traceDetails)})" : string.Empty;
+                            traceParts.Add($"{ResultLabel(result)} {mark}{detail}");
+                        }
 
                         if (StopRequested)
                             break;
                         if (!ok && !action.ContinueOnFailure)
                             break;
                     }
-                }
-                finally
-                {
-                    CurrentAction = null;
-                    StopRequested = false;
-                }
 
-                if (traceParts != null && Exists(uid))
-                    SendTrace(uid, eventArgs, $"[{action.ActionName}] {string.Join(" · ", traceParts)}");
+                    if (traceParts != null && Exists(uid))
+                        SendTrace(uid, eventArgs, $"[{action.ActionName}] {string.Join(" · ", traceParts)}");
+                }
+            }
+            finally
+            {
+                CurrentAction = outerAction;
+                StopRequested = outerStop;
+                _tracing = outerTracing;
+                _traceDetails = outerDetails;
             }
         }
 
@@ -250,6 +323,14 @@ namespace Content.Server.Qlippoth
         public IEnumerable<EntityUid> ResolveTargets(EntityUid uid, object? eventArgs, QlippothTargeting? targeting)
         {
             targeting ??= new QlippothTargeting();
+            var targets = ResolveTargetsCore(uid, eventArgs, targeting).ToList();
+            if (_tracing)
+                TraceDetail(targets.Count == 0 ? $"no target: {DescribeTargeting(targeting)}" : $"→ {DescribeEntities(targets)}");
+            return targets;
+        }
+
+        private IEnumerable<EntityUid> ResolveTargetsCore(EntityUid uid, object? eventArgs, QlippothTargeting targeting)
+        {
             switch (targeting.Mode)
             {
                 case QlippothTargetMode.Target:
@@ -384,6 +465,7 @@ namespace Content.Server.Qlippoth
             if (!QlippothEntityManager.ComponentFactory.TryGetRegistration(componentName, out var registration))
             {
                 Sawmill.Warning($"{uid}: unknown component '{componentName}'.");
+                TraceDetail($"unknown component {componentName}");
                 return null;
             }
 
@@ -405,6 +487,7 @@ namespace Content.Server.Qlippoth
                 best = otherUid;
             }
 
+            TraceDetail(best != null ? $"nearest {componentName}: {EntityName(best.Value)} ({MathF.Sqrt(bestDistance):0.#} tiles)" : $"no {componentName} on this map");
             return best;
         }
 
@@ -431,6 +514,7 @@ namespace Content.Server.Qlippoth
             if (!TryComp<QlippothActionsComponent>(uid, out var actions))
                 return;
             actions.State[key] = value;
+            TraceDetail($"{key}={value}");
             _initiation.Dispatch<OnStateChangedInitiation>(uid, new QlippothStateEventArgs(key, value));
         }
 
@@ -441,27 +525,36 @@ namespace Content.Server.Qlippoth
 
         public bool ClearState(EntityUid uid, string key)
         {
-            return TryComp<QlippothActionsComponent>(uid, out var actions) && actions.State.Remove(key);
+            var removed = TryComp<QlippothActionsComponent>(uid, out var actions) && actions.State.Remove(key);
+            TraceDetail(removed ? $"{key} cleared" : $"{key} was not set");
+            return removed;
         }
 
         public bool CheckSituation(EntityUid uid, bool? held, bool? contained, bool? anchored, bool? inContainer, bool? hasPlayer, float? minDamage, float? maxDamage)
         {
             if (held != null && (_initiation.GetHolder(uid) != null) != held.Value)
-                return false;
+                return Fail($"held={_initiation.GetHolder(uid) != null}");
             if (contained != null && _initiation.IsContained(uid) != contained.Value)
-                return false;
+                return Fail($"contained={_initiation.IsContained(uid)}");
             if (anchored != null && Transform(uid).Anchored != anchored.Value)
-                return false;
+                return Fail($"anchored={Transform(uid).Anchored}");
             if (inContainer != null && (_initiation.GetContainerOwner(uid) != null) != inContainer.Value)
-                return false;
+                return Fail($"inContainer={_initiation.GetContainerOwner(uid) != null}");
             if (hasPlayer != null && HasPlayer(uid) != hasPlayer.Value)
-                return false;
+                return Fail($"hasPlayer={HasPlayer(uid)}");
             var damage = _initiation.TotalDamage(uid);
             if (minDamage != null && damage < minDamage.Value)
-                return false;
+                return Fail($"damage {damage:0.#} < {minDamage.Value:0.#}");
             if (maxDamage != null && damage > maxDamage.Value)
-                return false;
+                return Fail($"damage {damage:0.#} > {maxDamage.Value:0.#}");
+            TraceDetail("situation matches");
             return true;
+
+            bool Fail(string why)
+            {
+                TraceDetail(why);
+                return false;
+            }
         }
 
         public int ResetCooldowns(EntityUid uid, string? actionName)
@@ -476,6 +569,7 @@ namespace Content.Server.Qlippoth
                 action.NextReadyAt = TimeSpan.Zero;
                 count++;
             }
+            TraceDetail($"{count} cooldown(s) reset");
             return count;
         }
         #endregion
@@ -487,6 +581,7 @@ namespace Content.Server.Qlippoth
             if (!_prototypes.HasIndex<EntityPrototype>(prototype))
             {
                 Sawmill.Warning($"Unknown prototype '{prototype}'.");
+                TraceDetail($"unknown prototype {prototype}");
                 return null;
             }
             var spawned = Spawn(prototype, Scatter(coordinates, scatter));
@@ -498,16 +593,23 @@ namespace Content.Server.Qlippoth
             bool ghostRole, string roleName, string roleDescription, string roleRules, bool trackOffspring, int maxAlive, bool copyState = false)
         {
             if (ResolveDestination(uid, eventArgs, destination) is not { } coordinates)
+            {
+                TraceDetail("no destination");
                 return false;
+            }
 
             TryComp<QlippothActionsComponent>(uid, out var actions);
             actions?.Offspring.RemoveWhere(child => !Exists(child));
 
             var any = false;
+            var spawnedCount = 0;
             for (var i = 0; i < count; i++)
             {
                 if (maxAlive > 0 && actions != null && actions.Offspring.Count >= maxAlive)
+                {
+                    TraceDetail($"offspring cap {maxAlive} reached ({actions.Offspring.Count} alive, counts every tracked offspring)");
                     break;
+                }
 
                 var spawned = SpawnAt(prototype, coordinates, scatter);
                 if (spawned == null)
@@ -523,14 +625,21 @@ namespace Content.Server.Qlippoth
                         childActions.State[key] = value;
                 }
                 any = true;
+                spawnedCount++;
             }
+            if (spawnedCount > 0)
+                TraceDetail($"spawned {spawnedCount}× {prototype}");
             return any;
         }
 
         public bool MakeGhostRole(EntityUid entity, string roleName, string roleDescription, string roleRules)
         {
             if (!Exists(entity) || !HasComp<MindContainerComponent>(entity))
+            {
+                TraceDetail($"{(Exists(entity) ? EntityName(entity) : "target")} has no MindContainer");
                 return false;
+            }
+            TraceDetail($"ghost role offered on {EntityName(entity)}");
 
             var ghostRole = EnsureComp<GhostRoleComponent>(entity);
             ghostRole.RoleName = Loc.GetString(roleName);
@@ -657,7 +766,10 @@ namespace Content.Server.Qlippoth
         {
             var xform = Transform(uid);
             if (xform.GridUid is not { } gridUid || !TryComp<MapGridComponent>(gridUid, out var grid))
+            {
+                TraceDetail("not on a grid");
                 return false;
+            }
             var indices = _map.TileIndicesFor(gridUid, grid, xform.Coordinates);
             Atmosphere.HotspotExpose(gridUid, indices, temperature, volume, uid);
             return true;
@@ -678,7 +790,10 @@ namespace Content.Server.Qlippoth
             if (name != null)
             {
                 if (!_solutions.TryGetSolution(target, name, out var named))
+                {
+                    TraceDetail($"{EntityName(target)} has no solution '{name}'");
                     return false;
+                }
                 solutionEntity = named.Value;
                 return true;
             }
@@ -688,22 +803,35 @@ namespace Content.Server.Qlippoth
                 solutionEntity = solution;
                 return true;
             }
+            TraceDetail($"{EntityName(target)} has no solution");
             return false;
         }
 
         public bool AddReagent(EntityUid target, string? solutionName, Solution toAdd)
         {
             if (solutionName == null && HasComp<Content.Shared.Body.Components.BloodstreamComponent>(target))
-                return Bloodstream.TryAddToBloodstream(target, toAdd);
+            {
+                var injected = Bloodstream.TryAddToBloodstream(target, toAdd);
+                TraceDetail(injected ? $"{toAdd.Volume}u {DescribeReagents(toAdd)} into bloodstream" : "bloodstream refused it");
+                return injected;
+            }
             if (!TryGetSolution(target, solutionName, out var solution))
                 return false;
-            return _solutions.TryAddSolution(solution, toAdd);
+            var added = _solutions.TryAddSolution(solution, toAdd);
+            TraceDetail(added ? $"+{toAdd.Volume}u {DescribeReagents(toAdd)}, now {solution.Comp.Solution.Volume}/{solution.Comp.Solution.MaxVolume}u" : $"no room ({solution.Comp.Solution.Volume}/{solution.Comp.Solution.MaxVolume}u)");
+            return added;
+        }
+
+        private static string DescribeReagents(Solution solution)
+        {
+            return string.Join("+", solution.Contents.Select(reagent => reagent.Reagent.Prototype));
         }
 
         public bool EmptySolution(EntityUid target, string? solutionName)
         {
             if (!TryGetSolution(target, solutionName, out var solution))
                 return false;
+            TraceDetail($"emptied {solution.Comp.Solution.Volume}u");
             _solutions.RemoveAllSolution(solution);
             return true;
         }
@@ -712,16 +840,25 @@ namespace Content.Server.Qlippoth
         {
             if (!TryGetSolution(target, solutionName, out var solution))
                 return false;
+            TraceDetail($"{solution.Comp.Solution.Volume}u {solution.Comp.Solution.Temperature:0}K → {temperature:0}K");
             _solutions.SetTemperature(solution, temperature);
             return true;
         }
 
         public bool SpillSolution(EntityUid target, string? solutionName)
         {
-            if (!TryGetSolution(target, solutionName, out var solution) || solution.Comp.Solution.Volume <= 0)
+            if (!TryGetSolution(target, solutionName, out var solution))
                 return false;
-            var spilled = _solutions.SplitSolution(solution, solution.Comp.Solution.Volume);
-            return Puddle.TrySpillAt(Transform(target).Coordinates, spilled, out _);
+            if (solution.Comp.Solution.Volume <= 0)
+            {
+                TraceDetail("solution is empty");
+                return false;
+            }
+            var volume = solution.Comp.Solution.Volume;
+            var spilled = _solutions.SplitSolution(solution, volume);
+            var ok = Puddle.TrySpillAt(Transform(target).Coordinates, spilled, out _);
+            TraceDetail(ok ? $"spilled {volume}u" : "could not spill here");
+            return ok;
         }
         #endregion
 
@@ -804,9 +941,12 @@ namespace Content.Server.Qlippoth
             if (!QlippothEntityManager.ComponentFactory.TryGetRegistration(componentName, out var registration))
             {
                 Sawmill.Warning($"RemoveComponents: unknown component '{componentName}'.");
+                TraceDetail($"unknown component {componentName}");
                 return false;
             }
-            return QlippothEntityManager.RemoveComponent(target, registration.Type);
+            var removed = QlippothEntityManager.RemoveComponent(target, registration.Type);
+            TraceDetail(removed ? $"removed {componentName} from {EntityName(target)}" : $"{EntityName(target)} has no {componentName}");
+            return removed;
         }
 
         public bool TransferMinds(EntityUid self, EntityUid target, QlippothMindTransfer mode)
@@ -898,6 +1038,7 @@ namespace Content.Server.Qlippoth
                 _initiation.Dispatch<OnSignalInitiation>(uid, eventArgs);
                 count++;
             }
+            TraceDetail($"'{signal}' → {count} listener(s)");
             return count;
         }
 
@@ -916,13 +1057,17 @@ namespace Content.Server.Qlippoth
             }
 
             if (candidates.Count == 0)
+            {
+                TraceDetail("no unbreached gate");
                 return 0;
+            }
             candidates.Sort((a, b) => a.Distance.CompareTo(b.Distance));
             if (nearestOnly)
                 candidates = candidates.Take(1).ToList();
 
             foreach (var (gate, _) in candidates)
                 _gates.TriggerBreach(gate);
+            TraceDetail($"breached {candidates.Count} gate(s)");
             return candidates.Count;
         }
         #endregion
@@ -942,12 +1087,15 @@ namespace Content.Server.Qlippoth
         /// <summary>Fire OnChainInitiation { key } on the Qlippoth now, forwarding the original event args. Returns how many actions fired.</summary>
         public int Chain(EntityUid uid, string key, object? eventArgs)
         {
-            return _initiation.Dispatch<OnChainInitiation>(uid, new QlippothChainEventArgs(key, eventArgs));
+            var fired = _initiation.Dispatch<OnChainInitiation>(uid, new QlippothChainEventArgs(key, eventArgs));
+            TraceDetail($"'{key}' → {fired} action(s)");
+            return fired;
         }
 
         public void ScheduleChain(EntityUid uid, string key, float delaySeconds, object? eventArgs, bool refresh)
         {
             var dueAt = Timing.CurTime + TimeSpan.FromSeconds(delaySeconds);
+            TraceDetail($"'{key}' in {delaySeconds:0.#} s");
             if (refresh)
             {
                 foreach (var pending in _pendingChains)
@@ -964,7 +1112,9 @@ namespace Content.Server.Qlippoth
 
         public int CancelChain(EntityUid uid, string key)
         {
-            return _pendingChains.RemoveAll(pending => pending.Uid == uid && pending.Key == key);
+            var cancelled = _pendingChains.RemoveAll(pending => pending.Uid == uid && pending.Key == key);
+            TraceDetail($"'{key}': {cancelled} pending cancelled");
+            return cancelled;
         }
 
         private void FireDueChains()
@@ -1067,19 +1217,37 @@ namespace Content.Server.Qlippoth
         /// <summary>Unbolt and open a door regardless of access. Returns false for non-doors and welded doors.</summary>
         public bool ForceOpenDoor(EntityUid doorUid, EntityUid? user = null)
         {
-            if (!TryComp<DoorComponent>(doorUid, out var door) || door.State == DoorState.Welded)
+            if (!TryComp<DoorComponent>(doorUid, out var door))
+            {
+                TraceDetail($"{EntityName(doorUid)} is not a door");
                 return false;
+            }
+            if (door.State == DoorState.Welded)
+            {
+                TraceDetail($"{EntityName(doorUid)} is welded");
+                return false;
+            }
 
             SetDoorBolts(doorUid, false);
             if (door.State is DoorState.Closed or DoorState.Denying)
+            {
                 Door.StartOpening(doorUid, door, user);
+                TraceDetail($"{EntityName(doorUid)} opening");
+            }
+            else
+                TraceDetail($"{EntityName(doorUid)} already {door.State}");
             return true;
         }
 
         public void SetDoorBolts(EntityUid doorUid, bool down)
         {
             if (TryComp<DoorBoltComponent>(doorUid, out var bolt))
+            {
                 Door.SetBoltsDown((doorUid, bolt), down);
+                TraceDetail($"{EntityName(doorUid)} bolts {(down ? "down" : "up")}");
+            }
+            else
+                TraceDetail($"{EntityName(doorUid)} has no bolts");
         }
 
         private void ExpireDoorHolds()

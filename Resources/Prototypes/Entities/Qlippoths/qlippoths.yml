@@ -292,9 +292,14 @@
 #     The verb text is "[NN] Group: ResultA, ResultB, ..." and lists the results it runs, in order.
 #   - Every action has continueOnFailure: true, so one failing result does not hide the ones after it.
 #     Each verb starts with DebugTraceResult so you can see it fired.
-#   - traceResults: true on the component: after every verb you get ONE purple chat line listing each result
-#     with ✓ (returned true), ✗ (returned false: nothing to act on, missing component, chance missed...) or ■ (Stop).
-#     That line is the ground truth for "did it run"; the comments below say what you should SEE on top of it.
+#   - traceResults: true on the component: after every verb you get ONE purple chat line listing each result:
+#       ✓ did its job        ✗ ran but had nothing to do / failed its check        ■ StopResult ended the list
+#       💥 the result threw an exception (also in the server log; this is always a bug)
+#     Most entries carry a detail in brackets saying exactly what happened or why not, e.g.
+#       Ignite ✓ (→ Urist; Urist now 3 stacks, on fire=True) · OpenDoor ✗ (no target: NearestInRange 6 tiles, needs Door)
+#     That line is the ground truth: ✓ with a detail = it worked, ✗ = it did not and the bracket says why.
+#     The "Expect:" comments below say what you should SEE in the world on top of it.
+#   - Right-click the idol -> Qlippoth -> "How do I test these?" whispers you the test order and how to read the line.
 #   - "target" of a verb = the player who clicked. Offspring = the mobs the idol spawned in [15].
 #   - Verbs marked [!] are disruptive (explosions, round events, mind swap). Use them on a test server.
 #   - [19] Undo puts back what the other verbs changed (components, name, anchor, doors, pinpointer, polymorph, fire).
@@ -350,6 +355,24 @@
     - type: QlippothActions
       traceResults: true
       actions:
+        # ---------------- Interface ----------------
+        - !type:QlippothAction
+          actionName: howToTest           # whispers the tester a cheat sheet; not a result under test
+          continueOnFailure: true
+          initiation: !type:VerbInitiation
+            key: howto
+            text: "How do I test these? (cheat sheet)"
+            priority: 101
+          results:
+            - !type:WhisperToResult
+              message: "READ THE PURPLE LINE after every verb: ✓ = worked, ✗ = ran but nothing happened (the bracket says why: no target, missing component, chance missed), ■ = StopResult ended the list, 💥 = crashed (always a bug, check the server log). Every verb starts with DebugTrace ✓ so you know the click arrived."
+            - !type:WhisperToResult
+              message: "ORDER: [01]-[12] in any order. [15] Reproduce BEFORE [16] Offspring (it kills what [15] spawned). [14] Components and [17] Polymorph BEFORE [19] Undo. [04] sets you on fire: [19] Undo puts it out. Hit the idol with any weapon for the thorns demo of [13]."
+            - !type:WhisperToResult
+              message: "NEEDS SETUP: [12] Doors wants an airlock within 6 tiles. [02] PoweredLight wants a wall light within 6 tiles. [17] needs you to stand still 10 s as a carp. [22] needs an unbreached gate on the map. [20]-[23] are marked [!]: they explode, call the shuttle, swap your mind. Test server only."
+            - !type:WhisperToResult
+              message: "EXPECTED ✗: [13] all four (they only edit a damage event that a verb does not carry). [16] with nothing spawned ('no target: Offspring'). [09] ConvertTiles when every 50% roll missed. [19] on anything that was not changed. Anything else ✗ = read the bracket, then report it."
+
         # ---------------- [01] Text / chat ----------------
         - !type:QlippothAction
           actionName: test01Text
@@ -358,6 +381,9 @@
             key: test01
             text: "[01] Text: DebugTrace, Popup, Speak, WhisperTo, SayActorName, MindMessage, ForceSay, ForceEmote, Log"
             priority: 100
+          # Expect: purple popup over the idol "PopupResult works.", the idol SAYS two lines in local chat, you alone
+          # get a whisper, it says your name, a MindMessage appears in your chat, "ForceSayResult made me say this."
+          # in local chat, the idol screams (emote), and LogResult only shows in the server log (✓ is all you see).
           results:
             - !type:DebugTraceResult
               message: "DebugTrace worked."
@@ -470,6 +496,9 @@
             key: test05
             text: "[05] Sanity: DamageSanity, RestoreSanity, SetSanityDrainMultiplier, ApplyCorruption, RemoveCorruption"
             priority: 96
+          # Expect: your sanity drops 5 then comes back 5 (trace shows the exact before→after numbers), drain multiplier
+          # set to ×1 (no visible change), then you are corrupted for 10 s (screen overlay / sanity ticks) and
+          # immediately cleansed again. RemoveCorruption ✗ only if ApplyCorruption did not land.
           results:
             - !type:DebugTraceResult
             - !type:DamageSanityResult
@@ -490,6 +519,8 @@
             key: test06
             text: "[06] State: SetState, ToggleState, IncrementState, RequireState, ClearState"
             priority: 95
+          # Expect: no world change. Trace shows probe=a, then probe=b, counter=N (goes up on every click), RequireState ✓
+          # with "probe=b, want b", the purple popup "State results work", then "probe cleared".
           results:
             - !type:DebugTraceResult
             - !type:SetStateResult
@@ -519,6 +550,10 @@
             key: test07
             text: "[07] Flow: Chance, RequireTarget, RequireSituation, Random, Group, ForEachTarget, Repeat, ResetCooldown, Chain, Delay, CancelDelay, Stop"
             priority: 94
+          # Expect: trace shows "100% roll passed", "1 pass the filter" (you), "situation matches" (idol on the floor),
+          # ONE of the RandomResult popups (trace says which option), "GroupResult works." popup, everyone within 3 tiles
+          # jitters 1 s, the test sound plays 3 times, "N cooldown(s) reset", Chain "'noListener' → 0 action(s)",
+          # Delay/CancelDelay bookkeeping, then Stop ■ as the LAST entry. The "BUG" popup must never appear.
           results:
             - !type:DebugTraceResult
             - !type:ChanceResult
@@ -573,6 +608,8 @@
             key: test08
             text: "[08] Spawn: SpawnEffect, SpawnItem, ThrowSpawned, SpawnOnTilesInRange, ShootProjectile, ReleaseGas"
             priority: 93
+          # Expect: sparks on the idol, a bread next to it, two bananas fly out, sparks on every tile within 1,
+          # a foam dart shoots at you, and the trace shows the tile's moles going up by 5 (no visible change).
           results:
             - !type:DebugTraceResult
             - !type:SpawnEffectResult
@@ -599,6 +636,9 @@
             key: test09
             text: "[09] Atmos/Tiles: HeatTile, RemoveGas, Smoke, SpillReagent, ConvertTiles"
             priority: 92
+          # Expect: trace shows the tile temperature +10 K and oxygen moles going down by 5 (neither visible),
+          # a smoke cloud (spread 2, 4 s), a water puddle under the idol, and about half the tiles within 1 turn to wood.
+          # ConvertTiles ✗ happens when the 50% roll missed every tile: click again.
           results:
             - !type:DebugTraceResult
             - !type:HeatTileResult
@@ -625,6 +665,8 @@
             key: test10
             text: "[10] Solution: AddReagent, HeatSolution, SpillSolution, EmptySolution"
             priority: 91
+          # Expect: trace shows +20u Water into the beaker (now 20/60u), heated 293 → 350 K, a 20u water puddle on
+          # the floor, +10u Water, then "emptied 10u". All visible proof is the puddle; the numbers do the rest.
           results:
             - !type:DebugTraceResult
             - !type:AddReagentResult
@@ -646,6 +688,9 @@
             key: test11
             text: "[11] Movement: Pull, Face, Throw, Push, SwapPlaces, Teleport, SetAnchored(on)"
             priority: 90
+          # Expect: you start pulling the idol, the idol turns to face you, you get thrown 2 tiles away from it,
+          # pushed further, you and the idol swap places, the idol blinks to a random spot within 3 tiles (void
+          # effect), then it is anchored (cannot be dragged until [19]). Pull ✗ if you are already pulling it.
           results:
             - !type:DebugTraceResult
             - !type:PullResult              # you start pulling the idol
@@ -672,6 +717,10 @@
             key: test12
             text: "[12] Doors/Pinpointer: OpenDoor, SetDoorBolts, HoldDoorsInRange, SetPinpointerActive, PointAtNearest"
             priority: 89
+          # Expect (airlock within 6 tiles): it opens, then bolts (red lights), every airlock within 6 is held Sealed
+          # for 10 s, the idol's pinpointer screen lights up and points at the nearest gate or door.
+          # No door in range: OpenDoor / SetDoorBolts ✗ with "no target: NearestInRange 6 tiles, needs Door" and
+          # HoldDoors ✗ "no airlock within 6 tiles". That is the room, not a bug: move the idol next to an airlock.
           results:
             - !type:DebugTraceResult
             - !type:OpenDoorResult
@@ -724,6 +773,7 @@
             key: test14
             text: "[14] Components: AddComponents(OwO on you), Rename(idol)"
             priority: 87
+          # Expect: everything you say is OwO-ified until [19], and shift-click the idol: it is now "renamed idol".
           results:
             - !type:DebugTraceResult
             - !type:AddComponentsResult     # [19] Undo removes it
@@ -767,6 +817,8 @@
             key: test16
             text: "[16] Offspring end: SetMobState(dead), Gib, Delete, CullOffspring"
             priority: 85
+          # Expect (after [15]): the offspring drop dead, the mice gib into blood, whatever is left is deleted, and the
+          # trace ends with CullOffspring. Everything ✗ with "no target: Offspring" = run [15] first.
           results:
             - !type:DebugTraceResult
             - !type:SetMobStateResult
@@ -786,6 +838,8 @@
             key: test17
             text: "[17] Conversion: ReplaceEntity(food -> bread), Polymorph(you -> carp, 10s)"
             priority: 84
+          # Expect: a banana appears and instantly becomes bread (trace: → banana), then you turn into a magic carp
+          # for 10 s (or use [19] RevertPolymorph as the carp). Right-click works as the carp.
           results:
             - !type:DebugTraceResult
             - !type:SpawnItemResult
@@ -809,6 +863,8 @@
             key: test18
             text: "[18] Events: Announce, DebugAnnounce, Signal"
             priority: 83
+          # Expect: station announcement "AnnounceResult works." (no sound), a second DEBUG announcement, and if an
+          # idol of many ears is within 10 tiles its "signal" action announces too. Signal detail: "'showcase-test' → N listener(s)".
           results:
             - !type:DebugTraceResult
             - !type:AnnounceResult
@@ -828,6 +884,9 @@
             key: test19
             text: "[19] Undo: Extinguish(you), RemoveComponents, Rename(back), SetAnchored(off), Pull(release), SetDoorBolts(up), HoldDoors(release), Pinpointer(off), RevertPolymorph, SetLight(back)"
             priority: 82
+          # Expect: fire out, OwO gone, name back, idol draggable again, pull released, bolts up, doors released,
+          # pinpointer screen off, you are human again, glow back to purple. ✗ on anything that was not changed is
+          # normal (e.g. "was not burning", "has no OwOAccent", "no target: ... needs Door").
           results:
             - !type:DebugTraceResult
             - !type:ExtinguishResult       # undoes [04]
@@ -862,6 +921,8 @@
             key: test20
             text: "[20][!] Blast: Explosion(small), Emp, Hotspot"
             priority: 81
+          # Expect: a small explosion on the idol (floor scorch, you take damage if adjacent), an EMP pulse within 2
+          # tiles (lights flicker, batteries drain), and a hotspot: the tile burns for a moment (stand back).
           results:
             - !type:DebugTraceResult
             - !type:ExplosionResult
@@ -879,6 +940,8 @@
             key: test21
             text: "[21][!] Round: AlertLevel(blue), StartGameRule, EndGameRule, CallShuttle, CallShuttle(recall)"
             priority: 80
+          # Expect: alert goes BLUE (announcement + lights), MassHallucinations starts then ends at once, the
+          # emergency shuttle is called then recalled (two announcements). Idol of many ears announces each event too.
           results:
             - !type:DebugTraceResult
             - !type:AlertLevelResult
@@ -897,6 +960,7 @@
             key: test22
             text: "[22][!] Gates: BreachGates(nearest)"
             priority: 79
+          # Expect: the nearest unbreached gate breaches (its event + announcement). ✗ "no unbreached gate" when none.
           results:
             - !type:DebugTraceResult
             - !type:BreachGatesResult
@@ -907,6 +971,7 @@
             key: test23
             text: "[23][!] Mind: TransferMind(swap with idol)"
             priority: 78
+          # Expect: your view jumps into the idol; your old body stands empty. Click [23] again from the idol to swap back.
           results:
             - !type:DebugTraceResult
             - !type:TransferMindResult
