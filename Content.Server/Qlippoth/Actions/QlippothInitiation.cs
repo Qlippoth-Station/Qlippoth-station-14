@@ -165,7 +165,7 @@ namespace Content.Server.Qlippoth
 
     /// <summary>Passed with OnExaminedInitiation.
     /// Target/Actor is the examiner;
-    /// !!Examine is the live event so ExamineTextResult can push text.
+    /// !!Examine is the live ExaminedEvent (range checks, examiner); results may push text into it if they want to.
     /// </summary>
     public sealed record QlippothExamineEventArgs(EntityUid Target, Content.Shared.Examine.ExaminedEvent Examine) : IQlippothTargetedEventArgs, IQlippothActorEventArgs
     {
@@ -1660,7 +1660,7 @@ namespace Content.Server.Qlippoth
     }
 
     /// <summary>
-    /// Fires when a player examines the Qlippoth (shift-click). Pair with ExamineTextResult to show state-dependent descriptions,
+    /// Fires when a player examines the Qlippoth (shift-click). Pair with PopupResult / SpeakResult for a reaction,
     /// or with DamageSanityResult to punish looking at it. eventArgs is a <see cref="QlippothExamineEventArgs"/>; Target/Actor is the examiner.
     /// </summary>
     [DataDefinition]

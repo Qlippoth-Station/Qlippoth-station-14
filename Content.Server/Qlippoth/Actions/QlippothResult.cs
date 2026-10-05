@@ -1398,23 +1398,6 @@ namespace Content.Server.Qlippoth
         }
     }
 
-    /// <summary>Appends a line to the examine text. Only meaningful under OnExaminedInitiation. Message may use {$self}.</summary>
-    [DataDefinition]
-    public sealed partial class ExamineTextResult : EffectResult
-    {
-        [DataField(required: true)]
-        public string Message { get; set; } = string.Empty;
-
-        public override bool Execute(EntityUid uid, QlippothActionResultSystem resultSystem, object? eventArgs = null)
-        {
-            if (QlippothUtil.Unwrap(eventArgs) is not QlippothExamineEventArgs args)
-                return false;
-
-            args.Examine.PushMarkup(Loc.GetString(Message, ("self", resultSystem.EntityName(uid))));
-            return true;
-        }
-    }
-
     /// <summary>Change the target's PointLight (by default the Qlippoth's own glow): on/off, color, radius, energy.</summary>
     [DataDefinition]
     public sealed partial class SetLightResult : EffectResult

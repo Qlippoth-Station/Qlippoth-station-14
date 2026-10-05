@@ -350,7 +350,7 @@
           continueOnFailure: true
           initiation: !type:VerbInitiation
             key: test01
-            text: "[01] Text: DebugTrace, Popup, ExamineText, Speak, WhisperTo, SayActorName, MindMessage, ForceSay, ForceEmote, Log"
+            text: "[01] Text: DebugTrace, Popup, Speak, WhisperTo, SayActorName, MindMessage, ForceSay, ForceEmote, Log"
             priority: 100
           results:
             - !type:DebugTraceResult
@@ -359,8 +359,6 @@
               message: "PopupResult works."
               recipient: Everyone
               type: Qlippoth
-            - !type:ExamineTextResult     # only shows under OnExaminedInitiation; failing here is expected
-              message: "ExamineTextResult works."
             - !type:SpeakResult
               messages: ["SpeakResult works.", "I have many mouths."]
             - !type:WhisperToResult

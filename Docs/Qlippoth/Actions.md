@@ -127,14 +127,14 @@ Where something goes or spawns. Modes: `Self`, `Target`, `Actor`, `RandomNearSel
 | Initiation | Fires when | Target |
 |---|---|---|
 | `VerbInitiation { key, text, alternative, priority, userFilter, showWhenState }` | a player picks the entry from the right-click menu | the player |
-| `OnExaminedInitiation { detailsRangeOnly, examinerFilter }` | a player examines it (pair with `ExamineTextResult`) | the examiner |
+| `OnExaminedInitiation { detailsRangeOnly, examinerFilter }` | a player examines it (shift-click) | the examiner |
 
 ---
 
 ## Results
 
 ### Effect (attack, heal, buff, debuff, manipulate)
-`DamageResult`, `HealResult`, `StunResult`, `KnockdownResult`, `StaminaDamageResult`, `ElectrocuteResult`, `FlashResult`, `StatusEffectResult` (any status effect prototype: blindness, drunk, sleep, stutter, slowdown...), `JitterResult`, `IgniteResult`, `ExtinguishResult`, `SpeedModifierResult` (timed), `DamageSanityResult`, `RestoreSanityResult`, `SetSanityDrainMultiplierResult`, `ApplyCorruptionResult`, `RemoveCorruptionResult`, `InjectReagentResult`, `SetMobStateResult`, `GibResult`, `DeleteResult`, `DropHeldItemsResult`, `ForceEmoteResult`, `ForceSayResult`, `RenameResult`, `ExamineTextResult`, `SetLightResult`, `PoweredLightResult` (off/on/toggle/break station lights), `EmpResult`, `ExplosionResult`, `PullResult`, `PopupResult`, `NegateDamageResult`, `ScaleIncomingDamageResult`, `BonusMeleeDamageResult`, `BonusAttackedDamageResult`, `OpenDoorResult`, `HoldDoorsInRangeResult`, `SetDoorBoltsResult`, `SetPinpointerActiveResult`, `PointAtNearestResult`.
+`DamageResult`, `HealResult`, `StunResult`, `KnockdownResult`, `StaminaDamageResult`, `ElectrocuteResult`, `FlashResult`, `StatusEffectResult` (any status effect prototype: blindness, drunk, sleep, stutter, slowdown...), `JitterResult`, `IgniteResult`, `ExtinguishResult`, `SpeedModifierResult` (timed), `DamageSanityResult`, `RestoreSanityResult`, `SetSanityDrainMultiplierResult`, `ApplyCorruptionResult`, `RemoveCorruptionResult`, `InjectReagentResult`, `SetMobStateResult`, `GibResult`, `DeleteResult`, `DropHeldItemsResult`, `ForceEmoteResult`, `ForceSayResult`, `RenameResult`, `SetLightResult`, `PoweredLightResult` (off/on/toggle/break station lights), `EmpResult`, `ExplosionResult`, `PullResult`, `PopupResult`, `NegateDamageResult`, `ScaleIncomingDamageResult`, `BonusMeleeDamageResult`, `BonusAttackedDamageResult`, `OpenDoorResult`, `HoldDoorsInRangeResult`, `SetDoorBoltsResult`, `SetPinpointerActiveResult`, `PointAtNearestResult`.
 
 ### Produce (things come out of it)
 `SpawnItemResult` (destination, scatter, anchor), `SpawnEffectResult`, `SpawnOnTilesInRangeResult`, `PlaySoundResult`, `ReleaseGasResult` (single gas or mixture), `SpeakResult` (say / whisper / emote), `WhisperToResult` (private chat line), `ShootProjectileResult`, `ThrowSpawnedResult`.
