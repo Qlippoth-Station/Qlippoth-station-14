@@ -354,9 +354,11 @@
             priority: 100
           results:
             - !type:DebugTraceResult
+              message: "DebugTrace worked."
             - !type:PopupResult
               message: "PopupResult works."
               recipient: Everyone
+              type: Qlippoth
             - !type:ExamineTextResult     # only shows under OnExaminedInitiation; failing here is expected
               message: "ExamineTextResult works."
             - !type:SpeakResult
@@ -1287,7 +1289,12 @@
         - !type:QlippothAction
           actionName: examined            # shift-click
           initiation: !type:OnExaminedInitiation
-          results: [ !type:DebugAnnounceResult ]
+          results:
+            - !type:DebugAnnounceResult
+            - !type:PopupResult
+              message: "EXAMINED"
+              recipient: Actor
+              type: Qlippoth
 
 
 #region specific examples

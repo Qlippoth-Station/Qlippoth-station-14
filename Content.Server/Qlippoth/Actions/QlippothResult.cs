@@ -3352,7 +3352,14 @@ namespace Content.Server.Qlippoth
         public QlippothPopupRecipient Recipient { get; set; } = QlippothPopupRecipient.Everyone;
 
         [DataField]
-        public PopupType Type { get; set; } = PopupType.SmallCaution;
+        public PopupType Type { get; set; } = PopupType.Qlippoth;
+
+        /// <summary>
+        /// Optional locale key or raw text shown instead of the generic "ACTION INITIATION, TRIGGERED ... RESULT" line.
+        /// May use {$self} for the Qlippoth's name.
+        /// </summary>
+        [DataField]
+        public string? Message { get; set; }
 
         /// <summary>Also write the same line to the server log (sawmill "qlippoth").</summary>
         [DataField]
@@ -3363,7 +3370,9 @@ namespace Content.Server.Qlippoth
             var action = resultSystem.CurrentAction;
             var actionName = action?.ActionName ?? "unknown";
             var initiation = action?.Initiation.GetType().Name ?? "unknown";
-            var text = $"\"{actionName}\" INITIATION, TRIGGERED \"{initiation}\" RESULT";
+            var text = Message != null
+                ? Loc.GetString(Message, ("self", resultSystem.EntityName(uid)))
+                : $"\"{actionName}\" INITIATION, TRIGGERED \"{initiation}\" RESULT";
 
             var target = resultSystem.ResolveTarget(uid, eventArgs);
             switch (Recipient)
