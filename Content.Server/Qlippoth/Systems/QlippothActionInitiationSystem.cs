@@ -67,6 +67,7 @@ namespace Content.Server.Qlippoth
         [Dependency] private GameTicker _gameTicker = default!;
         [Dependency] private RoundEndSystem _roundEnd = default!;
         [Dependency] private SharedPointLightSystem _pointLight = default!;
+        [Dependency] private ContainmentDimensionSystem _containment = default!;
 
         public static readonly VerbCategory QlippothVerbCategory = new("verb-categories-qlippoth", null);
 
@@ -311,6 +312,9 @@ namespace Content.Server.Qlippoth
             if (filter == null)
                 return true;
             if (!Exists(target))
+                return false;
+            if (filter.OutsideIntactContainment &&
+                _containment.IsCorruptionProtected(target, self, out _))
                 return false;
 
             if (filter.RequiredComponent != null && !HasComponentNamed(target, filter.RequiredComponent))

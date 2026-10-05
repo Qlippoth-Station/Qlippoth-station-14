@@ -9,6 +9,7 @@
   components:
   - type: Transform
     anchored: true
+    noRot: true
   - type: Clickable
   - type: InteractionOutline
   - type: Physics
@@ -71,6 +72,8 @@
       results:
       - !type:PlayQGateObjectiveSoundResult
         soundPath: /Audio/Machines/airlock_open.ogg
+      - !type:SignalQlippothObjectiveResult
+        signal: qgate-objective-stabilized
       - !type:CompleteQGateObjectiveResult
 
 - type: entity
@@ -105,6 +108,8 @@
       results:
       - !type:PlayQGateObjectiveSoundResult
         soundPath: /Audio/Machines/airlock_open.ogg
+      - !type:SignalQlippothObjectiveResult
+        signal: qgate-containment-sealed
       - !type:CompleteQGateObjectiveResult
 
 - type: entity

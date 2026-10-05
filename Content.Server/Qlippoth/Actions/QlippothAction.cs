@@ -174,9 +174,7 @@ namespace Content.Server.Qlippoth
         [DataField]
         public float? MaxSanity { get; set; }
 
-        /// <summary> Desc: true = only corrupted crew, false = only uncorrupted crew, null = don't care.
-        /// WARNING: Corruption system is not fully implemented, stay clear
-        /// </summary>
+        /// <summary> Desc: true = only corrupted crew, false = only uncorrupted crew, null = don't care.</summary>
         [DataField]
         public bool? Corrupted { get; set; }
 
@@ -199,6 +197,10 @@ namespace Content.Server.Qlippoth
         /// <summary> Desc: Skip the mob currently holding / wearing this Qlippoth.</summary>
         [DataField]
         public bool ExcludeHolder { get; set; }
+
+        /// <summary>Skip targets inside a built, intact Qlippoth containment field.</summary>
+        [DataField]
+        public bool OutsideIntactContainment { get; set; }
     }
 
     public enum QlippothTargetMode : byte

@@ -4,8 +4,8 @@ using Robust.Shared.Serialization;
 namespace Content.Shared.Qlippoth.Components;
 
 /// <summary>
-/// Console component for remotely scanning and analyzing contained Qlippoths.
-/// Xenoarchaeology-style interface for Science department.
+/// Console component for running research experiments on the Qlippoth in its linked chamber.
+/// The specimen owns its generated graph; this component stores only the chamber link.
 /// </summary>
 [RegisterComponent, NetworkedComponent, AutoGenerateComponentState]
 public sealed partial class QlippothResearchConsoleComponent : Component
@@ -16,29 +16,6 @@ public sealed partial class QlippothResearchConsoleComponent : Component
     [DataField, AutoNetworkedField]
     public EntityUid? LinkedChamber;
 
-    /// <summary>
-    /// Whether a scan is currently in progress.
-    /// </summary>
-    [DataField, AutoNetworkedField]
-    public bool IsScanning;
-
-    /// <summary>
-    /// Time remaining on the current scan in seconds.
-    /// </summary>
-    [DataField, AutoNetworkedField]
-    public float ScanTimeRemaining;
-
-    /// <summary>
-    /// Duration of a full scan in seconds.
-    /// </summary>
-    [DataField, AutoNetworkedField]
-    public float ScanDuration = 15f;
-
-    /// <summary>
-    /// Accumulated research data points from completed scans.
-    /// </summary>
-    [DataField, AutoNetworkedField]
-    public int AccumulatedResearchPoints;
 }
 
 [Serializable, NetSerializable]
@@ -47,14 +24,9 @@ public enum QlippothResearchConsoleUiKey : byte
     Key
 }
 
-[Serializable, NetSerializable]
-public sealed class QlippothResearchScanMessage : BoundUserInterfaceMessage;
-
-[Serializable, NetSerializable]
-public sealed class QlippothResearchExtractMessage : BoundUserInterfaceMessage;
-
 /// <summary>
-/// BUI state sent to client with Qlippoth containment data.
+/// Read-only view of the Qlippoth currently contained by this console's linked chamber.
+/// Research ownership stays server-side on the QlippothResearchProfileComponent.
 /// </summary>
 [Serializable, NetSerializable]
 public sealed class QlippothResearchConsoleBuiState : BoundUserInterfaceState
@@ -62,23 +34,20 @@ public sealed class QlippothResearchConsoleBuiState : BoundUserInterfaceState
     public bool HasLinkedChamber;
     public bool ChamberOccupied;
     public string? QlippothName;
-    public bool IsScanning;
-    public float ScanProgress;
-    public int AccumulatedPoints;
+    public float ActivityCooldown;
+    public List<QlippothResearchNodeState> Nodes;
 
     public QlippothResearchConsoleBuiState(
         bool hasLinkedChamber,
         bool chamberOccupied,
         string? qlippothName,
-        bool isScanning,
-        float scanProgress,
-        int accumulatedPoints)
+        float activityCooldown,
+        List<QlippothResearchNodeState> nodes)
     {
         HasLinkedChamber = hasLinkedChamber;
         ChamberOccupied = chamberOccupied;
         QlippothName = qlippothName;
-        IsScanning = isScanning;
-        ScanProgress = scanProgress;
-        AccumulatedPoints = accumulatedPoints;
+        ActivityCooldown = activityCooldown;
+        Nodes = nodes;
     }
 }

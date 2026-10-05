@@ -1,4 +1,4 @@
-﻿using System.Linq;
+using System.Linq;
 using System.Numerics;
 using Content.Shared.Atmos;
 using Content.Shared.Chat;
@@ -178,7 +178,10 @@ namespace Content.Server.Qlippoth
 
         public override bool Execute(EntityUid uid, QlippothActionResultSystem resultSystem, object? eventArgs = null)
         {
-            if (Chance < 1f && !resultSystem.Random.Prob(Chance))
+            var chance = float.IsNaN(Chance) || float.IsInfinity(Chance)
+                ? 0f
+                : Math.Clamp(Chance, 0f, 1f);
+            if (chance < 1f && !resultSystem.Random.Prob(chance))
                 return false;
 
             var profile = new CorruptionProfile(Duration, Severity, SanityDrainPerSecond, PulseInterval, SpreadChance, SpreadRadius);
@@ -1205,8 +1208,7 @@ namespace Content.Server.Qlippoth
             {
                 if (!resultSystem.QlippothEntityManager.HasComponent<Content.Shared.Qlippoth.Components.QlippothCorruptionComponent>(target))
                     continue;
-                resultSystem.Corruption.RemoveCorruption(target);
-                any = true;
+                any |= resultSystem.Corruption.RemoveCorruption(target);
             }
             return any;
         }
@@ -2814,6 +2816,23 @@ namespace Content.Server.Qlippoth
         }
     }
 
+    /// <summary>
+    /// Adds bonus progress to the exact specimen-specific checkpoint being studied. This lets
+    /// Qlippoth actions meaningfully participate in experiments while ordinary experiments still
+    /// progress without any action being authored for that species.
+    /// </summary>
+    [DataDefinition]
+    public sealed partial class AdvanceQlippothResearchResult : EventResult
+    {
+        [DataField]
+        public int Amount { get; set; } = 1;
+
+        public override bool Execute(EntityUid uid, QlippothActionResultSystem resultSystem, object? eventArgs = null)
+        {
+            return resultSystem.AdvanceQlippothResearch(eventArgs, Amount);
+        }
+    }
+
     /// <summary>Breach every Q-Gate on the station now (the Qlippoth calls its kin through).</summary>
     [DataDefinition]
     public sealed partial class BreachGatesResult : EventResult
@@ -2825,6 +2844,19 @@ namespace Content.Server.Qlippoth
         public override bool Execute(EntityUid uid, QlippothActionResultSystem resultSystem, object? eventArgs = null)
         {
             return resultSystem.BreachGates(uid, NearestOnly) > 0;
+        }
+    }
+
+    /// <summary>Marks a linked or nearest Q-Gate dungeon objective as completed and reports it to the gate.</summary>
+    [DataDefinition]
+    public sealed partial class CompleteGateObjectiveResult : EventResult
+    {
+        [DataField]
+        public QlippothTargeting Targeting { get; set; } = new();
+
+        public override bool Execute(EntityUid uid, QlippothActionResultSystem resultSystem, object? eventArgs = null)
+        {
+            return resultSystem.CompleteGateObjective(uid, eventArgs, Targeting);
         }
     }
     #endregion

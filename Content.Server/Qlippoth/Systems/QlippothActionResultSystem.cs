@@ -1,4 +1,4 @@
-﻿using System.Linq;
+using System.Linq;
 using System.Numerics;
 using Content.Server.AlertLevel;
 using Content.Server.Atmos.EntitySystems;   // AtmosphereSystem, FlammableSystem
@@ -118,6 +118,16 @@ namespace Content.Server.Qlippoth
         [Dependency] private SharedMapSystem _map = default!;
         [Dependency] private TileSystem _tile = default!;
         [Dependency] private ITileDefinitionManager _tileDefinitions = default!;
+        [Dependency] private QlippothResearchConsoleSystem _researchConsole = default!;
+
+        /// <summary>
+        /// Research actions may contribute bonus progress, but the console owns the underlying
+        /// experiment and its validation. Invalid or stale event arguments cannot mutate a profile.
+        /// </summary>
+        public bool AdvanceQlippothResearch(object? eventArgs, int amount)
+        {
+            return _researchConsole.AdvanceFromAction(eventArgs, amount);
+        }
         [Dependency] private IPrototypeManager _prototypes = default!;
         [Dependency] private IChatManager _chatManager = default!;
         [Dependency] private MovementSpeedModifierSystem _speed = default!;
@@ -878,6 +888,56 @@ namespace Content.Server.Qlippoth
             foreach (var (gate, _) in candidates)
                 _gates.TriggerBreach(gate);
             return candidates.Count;
+        }
+
+        public bool CompleteGateObjective(EntityUid uid, object? eventArgs, QlippothTargeting targeting)
+        {
+            if (eventArgs is QlippothGateObjectiveEventArgs objArgs && Exists(objArgs.Objective))
+            {
+                _gates.CompleteObjective(objArgs.Objective, uid);
+                return true;
+            }
+
+            var targets = ResolveTargets(uid, eventArgs, targeting);
+            var any = false;
+            foreach (var target in targets)
+            {
+                if (HasComp<QGateDungeonObjectiveComponent>(target))
+                {
+                    _gates.CompleteObjective(target, uid);
+                    any = true;
+                }
+            }
+
+            if (!any)
+            {
+                var coords = QlippothTransform.GetMapCoordinates(uid);
+                var query = EntityQueryEnumerator<QGateDungeonObjectiveComponent, TransformComponent>();
+                EntityUid? closest = null;
+                var minDist = float.MaxValue;
+                while (query.MoveNext(out var objUid, out var comp, out var xform))
+                {
+                    if (comp.Completed)
+                        continue;
+                    var pos = QlippothTransform.GetMapCoordinates(xform);
+                    if (pos.MapId != coords.MapId)
+                        continue;
+                    var dist = (pos.Position - coords.Position).Length();
+                    if (dist < minDist)
+                    {
+                        minDist = dist;
+                        closest = objUid;
+                    }
+                }
+
+                if (closest != null)
+                {
+                    _gates.CompleteObjective(closest.Value, uid);
+                    return true;
+                }
+            }
+
+            return any;
         }
         #endregion
 

@@ -22,7 +22,11 @@ Results run in order. A result returns `false` when it could not do its job (no 
 
 ### `filter:` (QlippothTargetFilter)
 Used by initiations that look at other entities and by range targeting.
-`requiredComponent`, `requiredComponents`, `forbiddenComponents`, `whitelist`, `blacklist`, `onlyAlive`, `onlyDead`, `onlyMobs`, `onlyPlayers`, `minSanity`, `maxSanity`, `corrupted`, `minDamage`, `anchored`, `excludeQlippoths`, `excludeOffspring`, `excludeHolder`.
+`requiredComponent`, `requiredComponents`, `forbiddenComponents`, `whitelist`, `blacklist`, `onlyAlive`, `onlyDead`, `onlyMobs`, `onlyPlayers`, `minSanity`, `maxSanity`, `corrupted`, `minDamage`, `anchored`, `excludeQlippoths`, `excludeOffspring`, `excludeHolder`, `outsideIntactContainment`.
+
+`outsideIntactContainment` skips targets protected by a built, intact chamber field. Corruption also respects that field during spread and when it originates from a contained Qlippoth; breached chambers do not mitigate it.
+
+`ApplyCorruptionResult` parameters are bounded server-side (duration 0.1-300 seconds, severity 1-5, drain 0-10, pulse interval 0 to disable or 5-60 seconds, spread chance 0-0.5, spread radius 0-8). An active effect rejects re-exposure rather than refreshing or stacking. The exposed entity carries its timer through map transfer; source loss clears attribution but does not erase the remaining effect.
 
 ### `targeting:` (QlippothTargeting)
 Who a result acts on. Default `Target` = the initiation's target (falls back to the Qlippoth).
@@ -85,7 +89,7 @@ Where something goes or spawns. Modes: `Self`, `Target`, `Actor`, `RandomNearSel
 | `OnTemperatureInitiation { min, max }` / `OnPressureInitiation { min, max }` | its tile's air is in a range (polled) | itself |
 | `OnHolderSanityInitiation { min, max }` | the holder's sanity is in a range (polled) | the holder |
 | `OnLightLevelInitiation { range, dark }` | it sits in darkness / light (polled) | itself |
-| `OnCorruptionAppliedInitiation` / `OnCorruptionPulseInitiation` | it corrupts someone / a corruption pulse ticks | the victim |
+| `OnCorruptionAppliedInitiation` / `OnCorruptionPulseInitiation` / `OnCorruptionRemovedInitiation` | corruption begins / pulses / is treated or expires | the victim |
 
 ### Timed (time since spawn; all share `interval, startDelay, variance, chance, maxFires, onlyWhileHeld, onlyWhileContained`)
 | Initiation | Fires when |
@@ -109,6 +113,9 @@ Where something goes or spawns. Modes: `Self`, `Target`, `Actor`, `RandomNearSel
 | `OnContainmentBreachedInitiation` | its chamber is breached | the chamber |
 | `OnEscapedContainmentInitiation` | it has left a breached chamber | the chamber |
 | `OnGateClearedInitiation` | its rift's gate is cleared by the crew | the gate |
+| `OnGateObjectiveCompletedInitiation { objectiveType }` | an objective in its rift dungeon is completed | the objective |
+| `OnGateObjectiveInteractedInitiation { objectiveType }` | an objective in its rift dungeon is interacted with | the objective |
+| `OnResearchExperimentInitiation { activity }` | the linked containment research console performs a matching experiment | the specimen |
 | `OnAnyGateBreachedInitiation` / `OnGateSpawnedInitiation` | any gate breaches / appears (all Qlippoths) | the gate |
 | `OnShuttleCalledInitiation { called }` | the emergency shuttle is called / recalled | - |
 | `OnRoundEndInitiation` | the round ends | - |
@@ -152,7 +159,7 @@ Where something goes or spawns. Modes: `Self`, `Target`, `Actor`, `RandomNearSel
 `ReplaceEntityResult` (one prototype or a source->replacement map; keeps position, mind, state), `PolymorphResult`, `RevertPolymorphResult`, `ConvertTilesResult`, `AddComponentsResult` (give anything `QlippothActions` = make it a Qlippoth), `RemoveComponentsResult`, `TransferMindResult` (possess / absorb / swap), `EnthrallResult`.
 
 ### Event
-`StartGameRuleResult`, `EndGameRuleResult`, `AnnounceResult`, `AlertLevelResult`, `CallShuttleResult`, `SignalResult`, `BreachGatesResult`.
+`StartGameRuleResult`, `EndGameRuleResult`, `AnnounceResult`, `AlertLevelResult`, `CallShuttleResult`, `SignalResult`, `BreachGatesResult`, `CompleteGateObjectiveResult`, `AdvanceQlippothResearchResult` (bonus progress on the active specimen-specific research node).
 
 ### State
 `SetStateResult`, `ToggleStateResult`, `IncrementStateResult`, `ClearStateResult`.
@@ -161,3 +168,5 @@ Where something goes or spawns. Modes: `Self`, `Target`, `Actor`, `RandomNearSel
 `ChanceResult`, `RequireTargetResult`, `RequireStateResult`, `RequireSituationResult`, `RandomResult` (weighted pick), `GroupResult`, `ForEachTargetResult`, `RepeatResult`, `ChainResult`, `DelayResult`, `CancelDelayResult`, `ResetCooldownResult`, `StopResult`, `LogResult`.
 
 See `ResultShowcaseIdol` (every result) and `InitiationShowcaseIdol` (every initiation) in `Resources/Prototypes/Entities/Qlippoths/qlippoths.yml`.
+
+The containment research console sends `OnResearchExperimentInitiation` with the specimen, researcher, chamber, current generated node ID, and activity. A matching action may react to the experiment; `AdvanceQlippothResearchResult` can add progress to that same node. The console still grants baseline experiment progress if no action matches, and action results cannot target a different specimen or bypass that node's prerequisites.

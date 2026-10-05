@@ -176,10 +176,12 @@
 # Containment Dimension Portal (Department Portals)
 - type: entity
   id: ContainmentDimensionPortal
+  abstract: true
   name: Containment Dimension Portal
   description: A stable dimensional portal leading to the station's Qlippoth Containment Dimension.
   components:
   - type: ContainmentPortal
+    department: Command
   - type: Transform
     anchored: true
   - type: Clickable
@@ -211,6 +213,86 @@
     volume: -6
     sound: /Audio/Qlippoth/portal-default.ogg
 
+# Map authors place the matching portal in each station department. These prototypes all use the
+# same transfer behavior; only their destination sector differs.
+- type: entity
+  id: ContainmentPortalCargo
+  parent: ContainmentDimensionPortal
+  name: Cargo Containment Portal
+  components:
+  - type: ContainmentPortal
+    department: Cargo
+  - type: AccessReader
+    access: [["Cargo"]]
+
+- type: entity
+  id: ContainmentPortalCivilian
+  parent: ContainmentDimensionPortal
+  name: Civilian Containment Portal
+  components:
+  - type: ContainmentPortal
+    department: Civilian
+
+- type: entity
+  id: ContainmentPortalCommand
+  parent: ContainmentDimensionPortal
+  name: Command Containment Portal
+  components:
+  - type: ContainmentPortal
+    department: Command
+  - type: AccessReader
+    access: [["Command"]]
+
+- type: entity
+  id: ContainmentPortalEngineering
+  parent: ContainmentDimensionPortal
+  name: Engineering Containment Portal
+  components:
+  - type: ContainmentPortal
+    department: Engineering
+  - type: AccessReader
+    access: [["Engineering"]]
+
+- type: entity
+  id: ContainmentPortalMedical
+  parent: ContainmentDimensionPortal
+  name: Medical Containment Portal
+  components:
+  - type: ContainmentPortal
+    department: Medical
+  - type: AccessReader
+    access: [["Medical"]]
+
+- type: entity
+  id: ContainmentPortalSecurity
+  parent: ContainmentDimensionPortal
+  name: Security Containment Portal
+  components:
+  - type: ContainmentPortal
+    department: Security
+  - type: AccessReader
+    access: [["Security"]]
+
+- type: entity
+  id: ContainmentPortalScience
+  parent: ContainmentDimensionPortal
+  name: Science Containment Portal
+  components:
+  - type: ContainmentPortal
+    department: Science
+  - type: AccessReader
+    access: [["Research"]]
+
+- type: entity
+  id: ContainmentPortalSilicon
+  parent: ContainmentDimensionPortal
+  name: Silicon Containment Portal
+  components:
+  - type: ContainmentPortal
+    department: Silicon
+  - type: AccessReader
+    access: [["Silicon"]]
+
 - type: entity
   id: QlippothContainmentLight
   name: Containment sector light
@@ -222,14 +304,24 @@
     color: "#B9D8FF"
 
 - type: entity
-  id: DevStationContainmentPortal
-  parent: ContainmentDimensionPortal
-  name: Development Station Containment Portal
-  description: A developer-only portal to the Qlippoth Containment Dimension.
+  id: QlippothContainmentBreachAlarm
+  name: Containment breach alarm
   components:
-  - type: AccessReader
-    access:
-    - - Command
+  - type: Transform
+    noRot: true
+  - type: Sprite
+    sprite: Structures/Wallmounts/Lighting/strobe_light.rsi
+    state: empty
+    color: "#DC143C"
+  - type: PointLight
+    radius: 8
+    energy: 4
+    color: "#DC143C"
+  - type: AmbientSound
+    range: 12
+    volume: 0
+    sound:
+      path: /Audio/Machines/alarm.ogg
 
 - type: entity
   id: ContainmentDimensionExitPortal

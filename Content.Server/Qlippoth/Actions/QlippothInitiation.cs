@@ -2,6 +2,7 @@ using System.Linq;
 using System.Numerics;
 using Content.Shared.Atmos;
 using Content.Shared.Mobs;
+using Content.Shared.Qlippoth.Components;
 using Content.Shared.Speech.Components;
 using Content.Shared.Whitelist;
 using Robust.Shared.Serialization.Manager.Attributes;
@@ -56,9 +57,14 @@ namespace Content.Server.Qlippoth
 
     /// <summary>Passed with OnCorruptionAppliedInitiation / OnCorruptionPulseInitiation.
     /// Target is the corrupted crew member.
-    /// !!This is not fully implemented yet
     /// </summary>
     public sealed record QlippothCorruptionEventArgs(EntityUid Target, int Severity) : IQlippothTargetedEventArgs;
+
+    /// <summary>Passed when corruption is treated or expires; Target is the affected crew member.</summary>
+    public sealed record QlippothCorruptionRemovedEventArgs(
+        EntityUid Target,
+        int Severity,
+        QlippothCorruptionRemovalReason Reason) : IQlippothTargetedEventArgs;
 
     /// <summary>Passed with ProximityInitiation and the range-tracking initiations, once per entity.
     /// Target entity is calculated by the initiation so it can vary with different proximity-based initiations.
@@ -190,6 +196,32 @@ namespace Content.Server.Qlippoth
     /// Target is the Qlippoth that sent the signal.
     /// </summary>
     public sealed record QlippothSignalEventArgs(EntityUid Target, string Signal) : IQlippothTargetedEventArgs;
+
+    /// <summary>
+    /// Describes a console-run experiment to the specimen's actions. Its node and method let
+    /// prototypes react to particular discoveries without making research depend on an action.
+    /// </summary>
+    public sealed record QlippothResearchExperimentEventArgs(
+        EntityUid Target,
+        EntityUid Researcher,
+        EntityUid Chamber,
+        string NodeId,
+        Content.Shared.Qlippoth.QlippothResearchActivity Activity) : IQlippothTargetedEventArgs, IQlippothActorEventArgs
+    {
+        public EntityUid Actor => Researcher;
+    }
+
+    /// <summary>Passed when a Q-Gate dungeon objective is interacted with or completed.
+    /// Target is the objective entity, Actor is the crew member interacting/completing it.
+    /// </summary>
+    public sealed record QlippothGateObjectiveEventArgs(
+        EntityUid Objective,
+        EntityUid Gate,
+        EntityUid Actor,
+        Content.Shared.Qlippoth.QGateObjectiveType ObjectiveType) : IQlippothTargetedEventArgs, IQlippothActorEventArgs
+    {
+        public EntityUid Target => Objective;
+    }
 
     /// <summary>Passed with OnStateChangedInitiation.</summary>
     public sealed record QlippothStateEventArgs(string Key, string Value);
@@ -548,6 +580,10 @@ namespace Content.Server.Qlippoth
     /// </summary>
     [DataDefinition]
     public sealed partial class OnCorruptionPulseInitiation : TriggerInitiation { }
+
+    /// <summary>Fires once when a corruption state is removed by treatment or expiry.</summary>
+    [DataDefinition]
+    public sealed partial class OnCorruptionRemovedInitiation : TriggerInitiation { }
     #endregion
 
     #region External Initiation Implementations
@@ -1558,6 +1594,23 @@ namespace Content.Server.Qlippoth
     }
 
     /// <summary>
+    /// Fires when the containment research console performs an experiment on this specimen.
+    /// A Qlippoth may have no matching action; the console still advances its generated graph.
+    /// </summary>
+    [DataDefinition]
+    public sealed partial class OnResearchExperimentInitiation : EventBasedInitiation
+    {
+        /// <summary>When set, only experiments of this method trigger the action.</summary>
+        [DataField]
+        public Content.Shared.Qlippoth.QlippothResearchActivity? Activity { get; set; }
+
+        public override bool Matches(EntityUid uid, QlippothActionInitiationSystem initiationSystem, object? eventArgs)
+            => eventArgs is QlippothResearchExperimentEventArgs args &&
+               args.Target == uid &&
+               (Activity == null || Activity == args.Activity);
+    }
+
+    /// <summary>
     /// Fires when the Qlippoth arrives somewhere by one of the Qlippoth pipelines: spawned on the station by a gate breach,
     /// docked into a containment chamber, or placed in a rift dungeon. eventArgs is a <see cref="QlippothArrivalEventArgs"/>.
     /// </summary>
@@ -1594,6 +1647,28 @@ namespace Content.Server.Qlippoth
     /// <summary>Fires on every Qlippoth when a new Q-Gate appears on the station. eventArgs is a <see cref="QlippothTargetEventArgs"/>; Target is the gate.</summary>
     [DataDefinition]
     public sealed partial class OnGateSpawnedInitiation : EventBasedInitiation { }
+
+    /// <summary>Fires on the rift Qlippoth when an objective in its dungeon is completed. eventArgs is a <see cref="QlippothGateObjectiveEventArgs"/>; Target is the objective, Actor the crew member.</summary>
+    [DataDefinition]
+    public sealed partial class OnGateObjectiveCompletedInitiation : EventBasedInitiation
+    {
+        [DataField]
+        public Content.Shared.Qlippoth.QGateObjectiveType? ObjectiveType { get; set; }
+
+        public override bool Matches(EntityUid uid, QlippothActionInitiationSystem initiationSystem, object? eventArgs)
+            => eventArgs is QlippothGateObjectiveEventArgs args && (ObjectiveType == null || args.ObjectiveType == ObjectiveType.Value);
+    }
+
+    /// <summary>Fires on the rift Qlippoth when an objective in its dungeon is interacted with. eventArgs is a <see cref="QlippothGateObjectiveEventArgs"/>; Target is the objective, Actor the crew member.</summary>
+    [DataDefinition]
+    public sealed partial class OnGateObjectiveInteractedInitiation : EventBasedInitiation
+    {
+        [DataField]
+        public Content.Shared.Qlippoth.QGateObjectiveType? ObjectiveType { get; set; }
+
+        public override bool Matches(EntityUid uid, QlippothActionInitiationSystem initiationSystem, object? eventArgs)
+            => eventArgs is QlippothGateObjectiveEventArgs args && (ObjectiveType == null || args.ObjectiveType == ObjectiveType.Value);
+    }
 
     /// <summary>Fires on every Qlippoth when the emergency shuttle is called / recalled. eventArgs is null.</summary>
     [DataDefinition]

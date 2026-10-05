@@ -12,10 +12,13 @@ using Content.Shared.Damage;
 using Content.Shared.Damage.Components;
 using Content.Shared.Damage.Systems;
 using Content.Server.Chat.Systems;
+using Content.Server.Popups;
 using Content.Shared.Interaction;
 using Robust.Shared.Placement;
 using Robust.Shared.Network;
 using Robust.Server.Player;
+using Robust.Shared.Physics.Components;
+using Robust.Shared.Physics.Systems;
 
 namespace Content.Server.Qlippoth.Systems;
 
@@ -31,17 +34,32 @@ public sealed partial class ContainmentDimensionSystem : EntitySystem
     [Dependency] private SharedHandsSystem _hands = default!;
     [Dependency] private QlippothActionInitiationSystem _initiation = default!;
     [Dependency] private ChatSystem _chat = default!;
+    [Dependency] private PopupSystem _popup = default!;
     [Dependency] private DamageableSystem _damageable = default!;
+    [Dependency] private SharedPhysicsSystem _physics = default!;
 
     public MapId ContainmentMapId { get; private set; } = MapId.Nullspace;
     private bool _layoutBuilt;
     private EntityUid _containmentGrid = EntityUid.Invalid;
     private int _nextChamberIndex;
+    private readonly Dictionary<EntityUid, EntityUid> _breachAlarms = new();
+    private static readonly (ContainmentDepartment Department, Vector2 Position)[] DepartmentPortals =
+    {
+        (ContainmentDepartment.Cargo, new Vector2(-15.5f, 7.5f)),
+        (ContainmentDepartment.Civilian, new Vector2(-5.5f, 7.5f)),
+        (ContainmentDepartment.Command, new Vector2(4.5f, 7.5f)),
+        (ContainmentDepartment.Engineering, new Vector2(14.5f, 7.5f)),
+        (ContainmentDepartment.Medical, new Vector2(-15.5f, 0.5f)),
+        (ContainmentDepartment.Security, new Vector2(-5.5f, 0.5f)),
+        (ContainmentDepartment.Science, new Vector2(4.5f, 0.5f)),
+        (ContainmentDepartment.Silicon, new Vector2(14.5f, 0.5f)),
+    };
 
     public override void Initialize()
     {
         base.Initialize();
         SubscribeLocalEvent<PlacementEntityEvent>(OnChamberPlacement);
+        SubscribeLocalEvent<ContainmentChamberComponent, EntityTerminatingEvent>(OnChamberTerminating);
 #pragma warning disable CS0618 // DamageChangedEvent is obsolete upstream; see QlippothDamagedEventArgs (QlippothInitiation.cs) for why we still use it.
            SubscribeLocalEvent<ContainmentChamberComponent, DamageChangedEvent>(OnChamberDamaged);
 #pragma warning restore CS0618
@@ -54,15 +72,18 @@ public sealed partial class ContainmentDimensionSystem : EntitySystem
         var chambers = EntityQueryEnumerator<ContainmentChamberComponent, TransformComponent>();
         while (chambers.MoveNext(out _, out var chamber, out var chamberTransform))
         {
-            if (!chamber.IsOccupied || chamber.ContainedQlippoth is not { } qlippoth ||
-                !TryComp(qlippoth, out TransformComponent? qlippothTransform) ||
-                qlippothTransform.MapID != chamberTransform.MapID)
+            if (!chamber.IsOccupied || chamber.ContainedQlippoth is not { } qlippoth)
                 continue;
 
+            if (!TryComp(qlippoth, out TransformComponent? qlippothTransform) ||
+                qlippothTransform.MapID != chamberTransform.MapID)
+            {
+                TryClearChamberOccupant(chamberTransform.Owner, qlippoth);
+                continue;
+            }
+
             var offset = qlippothTransform.Coordinates.Position - chamberTransform.Coordinates.Position;
-            if (!chamber.IsBreached && offset.Length() > chamber.ContainmentRadius)
-                _transform.SetCoordinates(qlippoth, chamberTransform.Coordinates);
-            else if (chamber.IsBreached)
+            if (chamber.IsBreached)
             {
                 var direction = offset.LengthSquared() > 0.01f
                     ? Vector2.Normalize(offset)
@@ -72,11 +93,19 @@ public sealed partial class ContainmentDimensionSystem : EntitySystem
 
                 if (offset.Length() > chamber.ContainmentRadius + 1f)
                 {
-                    chamber.IsOccupied = false;
-                    chamber.ContainedQlippoth = null;
-                    Dirty(chamberTransform.Owner, chamber);
+                    TryClearChamberOccupant(chamberTransform.Owner, qlippoth);
                     _initiation.Dispatch<OnEscapedContainmentInitiation>(qlippoth, new QlippothTargetEventArgs(chamberTransform.Owner));
                 }
+            }
+            else if (TryComp<PhysicsComponent>(qlippoth, out var physics) &&
+                     offset.Length() > chamber.ContainmentRadius - 0.5f)
+            {
+                var distance = offset.Length();
+                var direction = distance > 0.01f ? offset / distance : Vector2.UnitY;
+                var outwardSpeed = MathF.Max(0f, Vector2.Dot(physics.LinearVelocity, direction));
+                var penetration = MathF.Max(0f, distance - chamber.ContainmentRadius);
+                var impulseMagnitude = physics.Mass * (outwardSpeed + penetration * 4f + 0.5f) * frameTime;
+                _physics.ApplyLinearImpulse(qlippoth, -direction * impulseMagnitude, body: physics);
             }
         }
     }
@@ -84,11 +113,26 @@ public sealed partial class ContainmentDimensionSystem : EntitySystem
 #pragma warning disable CS0618 // DamageChangedEvent is obsolete upstream; see QlippothDamagedEventArgs (QlippothInitiation.cs) for why we still use it.
     private void OnChamberDamaged(EntityUid uid, ContainmentChamberComponent chamber, DamageChangedEvent args)
     {
-        if (chamber.IsBreached || _damageable.GetTotalDamage((uid, args.Damageable)) < chamber.BreachThreshold)
+        var damage = _damageable.GetTotalDamage((uid, args.Damageable));
+        if (chamber.IsBreached && damage < chamber.BreachThreshold)
+        {
+            chamber.IsBreached = false;
+            Dirty(uid, chamber);
+            if (_breachAlarms.Remove(uid, out var alarm) && Exists(alarm))
+                QueueDel(alarm);
+            _chat.DispatchGlobalAnnouncement(
+                Loc.GetString("containment-chamber-repaired", ("chamber", chamber.ChamberId)),
+                "CentCom Containment", playSound: true, colorOverride: Color.FromHex("#32CD32"));
+            return;
+        }
+
+        if (chamber.IsBreached || damage < chamber.BreachThreshold)
             return;
 
         chamber.IsBreached = true;
         Dirty(uid, chamber);
+        var alarmCoordinates = Transform(uid).Coordinates;
+        _breachAlarms[uid] = Spawn("QlippothContainmentBreachAlarm", alarmCoordinates);
         if (chamber.ContainedQlippoth is { } contained && Exists(contained))
             _initiation.Dispatch<OnContainmentBreachedInitiation>(contained, new QlippothTargetEventArgs(uid));
         _chat.DispatchGlobalAnnouncement(
@@ -97,43 +141,91 @@ public sealed partial class ContainmentDimensionSystem : EntitySystem
     }
 #pragma warning restore CS0618
 
+    private void OnChamberTerminating(
+        EntityUid uid,
+        ContainmentChamberComponent chamber,
+        ref EntityTerminatingEvent args)
+    {
+        if (_breachAlarms.Remove(uid, out var alarm) && Exists(alarm))
+            QueueDel(alarm);
+
+        if (!chamber.IsOccupied || chamber.ContainedQlippoth is not { } qlippoth ||
+            !Exists(qlippoth) || !TryComp<TransformComponent>(uid, out var chamberTransform) ||
+            !IsContainmentDimension(chamberTransform.MapID) ||
+            !TryComp<TransformComponent>(qlippoth, out _))
+            return;
+
+        _transform.SetCoordinates(qlippoth, chamberTransform.Coordinates.Offset(new Vector2(0f, -3f)));
+        _initiation.Dispatch<OnEscapedContainmentInitiation>(qlippoth, new QlippothTargetEventArgs(uid));
+    }
+
     public EntityUid CreateEngineeringBlueprint(EntityUid console)
     {
         EnsureContainmentDimensionCreated();
-        return Spawn("BlueprintContainmentChamber", Transform(console).Coordinates);
+        return Spawn("ContainmentChamberConstructionKit", Transform(console).Coordinates);
     }
 
     private void OnChamberPlacement(PlacementEntityEvent args)
     {
-        if (args.PlacementEventAction != PlacementEventAction.Create ||
-            !TryComp<QlippothChamberConstructionKitComponent>(args.EditedEntity, out _))
+        if (args.PlacementEventAction != PlacementEventAction.Create)
             return;
 
+        // Verify the user placing the chamber is holding a chamber construction kit
+        if (args.PlacerNetUserId is not { } userId ||
+            !_players.TryGetSessionById(userId, out var session) ||
+            session.AttachedEntity is not { } player ||
+            !_hands.TryGetActiveItem(new Entity<HandsComponent?>(player, null), out var held) ||
+            !TryComp<QlippothChamberConstructionKitComponent>(held, out _))
+        {
+            if (HasComp<ContainmentChamberComponent>(args.EditedEntity))
+                QueueDel(args.EditedEntity);
+            return;
+        }
+
         var mapCoordinates = _transform.ToMapCoordinates(args.Coordinates);
+        var pos = args.Coordinates.Position;
+        var snappedPos = new Vector2(MathF.Floor(pos.X) + 0.5f, MathF.Floor(pos.Y) + 0.5f);
         if (!IsContainmentDimension(mapCoordinates.MapId) || args.Coordinates.EntityId != _containmentGrid ||
-            !CanPlaceChamber(args.Coordinates.Position))
+            !IsEngineeringBuildablePosition(snappedPos) || !CanPlaceChamber(snappedPos))
         {
             QueueDel(args.EditedEntity);
+            if (IsContainmentDimension(mapCoordinates.MapId) && args.Coordinates.EntityId == _containmentGrid &&
+                !IsEngineeringBuildablePosition(snappedPos))
+            {
+                _popup.PopupEntity(Loc.GetString("containment-chamber-invalid-build-zone"), player, player);
+            }
             return;
         }
 
         QueueDel(args.EditedEntity);
-        if (!TryBuildEngineeringChamberAt(args.Coordinates.Position, out _, out _))
+        if (!TryBuildEngineeringChamberAt(snappedPos, out _, out _))
             return;
 
-        if (args.PlacerNetUserId is { } userId && _players.TryGetSessionById(userId, out var session) &&
-            session.AttachedEntity is { } player &&
-            _hands.TryGetActiveItem(new Entity<HandsComponent?>(player, null), out var held) &&
-            TryComp<QlippothChamberConstructionKitComponent>(held, out _))
-        {
-            QueueDel(held.Value);
-        }
+        QueueDel(held.Value);
     }
 
     public void EnsureContainmentDimensionCreated()
     {
         if (ContainmentMapId != MapId.Nullspace && _mapManager.MapExists(ContainmentMapId))
+        {
+            if (_containmentGrid != EntityUid.Invalid && Exists(_containmentGrid))
+                return;
+
+            _containmentGrid = EntityUid.Invalid;
+            foreach (var grid in _mapManager.GetAllGrids(ContainmentMapId))
+            {
+                _containmentGrid = grid.Owner;
+                break;
+            }
+
+            if (_containmentGrid == EntityUid.Invalid)
+            {
+                _layoutBuilt = false;
+                BuildContainmentLayout();
+            }
+
             return;
+        }
 
         var mapUid = _maps.CreateMap(out var mapId);
         ContainmentMapId = mapId;
@@ -151,6 +243,171 @@ public sealed partial class ContainmentDimensionSystem : EntitySystem
     public bool IsContainmentDimension(MapId mapId)
     {
         return mapId != MapId.Nullspace && mapId == ContainmentMapId;
+    }
+
+    /// <summary>
+    /// Resolves the arrival point for a map-placed department portal. The positions are within
+    /// the generated shared facility grid; station map authors can place the matching entry
+    /// prototype in that department when the custom station map is created.
+    /// </summary>
+    public bool TryGetDepartmentPortalCoordinates(ContainmentDepartment department, out MapCoordinates coordinates)
+    {
+        EnsureContainmentDimensionCreated();
+        foreach (var (candidate, position) in DepartmentPortals)
+        {
+            if (candidate != department)
+                continue;
+
+            coordinates = new MapCoordinates(position, ContainmentMapId);
+            return IsDepartmentPortalReady(coordinates);
+        }
+
+        coordinates = default;
+        return false;
+    }
+
+    public bool IsDepartmentPortalReady(ContainmentDepartment department)
+    {
+        foreach (var (candidate, position) in DepartmentPortals)
+        {
+            if (candidate == department)
+                return IsDepartmentPortalReady(new MapCoordinates(position, ContainmentMapId));
+        }
+
+        return false;
+    }
+
+    private bool IsDepartmentPortalReady(MapCoordinates coordinates)
+    {
+        return ContainmentMapId != MapId.Nullspace &&
+               _containmentGrid != EntityUid.Invalid &&
+               Exists(_containmentGrid) &&
+               _mapManager.MapExists(ContainmentMapId) &&
+               _mapManager.TryFindGridAt(coordinates, out var gridUid, out _) &&
+               gridUid == _containmentGrid;
+    }
+
+    public List<QlippothAvailableChamber> GetAvailableChambers()
+    {
+        var chambersAvailable = new List<QlippothAvailableChamber>();
+        var chamberIds = new HashSet<string>(StringComparer.Ordinal);
+        var duplicateChamberIds = new HashSet<string>(StringComparer.Ordinal);
+        var chambers = EntityQueryEnumerator<ContainmentChamberComponent, TransformComponent>();
+        while (chambers.MoveNext(out _, out var chamber, out var xform))
+        {
+            if (xform.MapID != ContainmentMapId || chamber.ChamberId.Length == 0)
+                continue;
+
+            if (!chamberIds.Add(chamber.ChamberId))
+                duplicateChamberIds.Add(chamber.ChamberId);
+
+            if (chamber.IsBuilt && !chamber.IsOccupied && !chamber.IsBreached)
+                chambersAvailable.Add(new QlippothAvailableChamber(chamber.ChamberId, chamber.Sector));
+        }
+
+        chambersAvailable.RemoveAll(chamber => duplicateChamberIds.Contains(chamber.ChamberId));
+        chambersAvailable.Sort((left, right) =>
+        {
+            var sectorOrder = StringComparer.Ordinal.Compare(left.Sector, right.Sector);
+            return sectorOrder != 0 ? sectorOrder : StringComparer.Ordinal.Compare(left.ChamberId, right.ChamberId);
+        });
+        return chambersAvailable;
+    }
+
+    public bool IsChamberAvailable(string chamberId)
+    {
+        if (string.IsNullOrWhiteSpace(chamberId))
+            return false;
+
+        EntityUid foundUid = EntityUid.Invalid;
+        ContainmentChamberComponent? foundChamber = null;
+        var chambers = EntityQueryEnumerator<ContainmentChamberComponent, TransformComponent>();
+        while (chambers.MoveNext(out _, out var chamber, out var xform))
+        {
+            if (xform.MapID != ContainmentMapId || chamber.ChamberId != chamberId)
+                continue;
+
+            if (foundChamber != null)
+                return false;
+
+            foundUid = xform.Owner;
+            foundChamber = chamber;
+        }
+
+        return foundChamber is { IsBuilt: true, IsOccupied: false, IsBreached: false } &&
+               foundUid != EntityUid.Invalid;
+    }
+
+    public bool TryAssignQlippothToChamber(EntityUid chamberUid, EntityUid qlippothUid)
+    {
+        if (!TryComp<ContainmentChamberComponent>(chamberUid, out var chamber) ||
+            !TryComp<TransformComponent>(chamberUid, out var chamberTransform) ||
+            !Exists(qlippothUid) ||
+            !HasComp<QlippothComponent>(qlippothUid) ||
+            !IsContainmentDimension(chamberTransform.MapID) ||
+            chamber.ChamberId.Length == 0 ||
+            !chamber.IsBuilt || chamber.IsOccupied || chamber.IsBreached)
+            return false;
+
+        var chambers = EntityQueryEnumerator<ContainmentChamberComponent>();
+        while (chambers.MoveNext(out var otherUid, out var other))
+        {
+            if (otherUid != chamberUid && other.ContainedQlippoth == qlippothUid)
+                return false;
+        }
+
+        chamber.IsOccupied = true;
+        chamber.ContainedQlippoth = qlippothUid;
+        Dirty(chamberUid, chamber);
+        return true;
+    }
+
+    public bool TryClearChamberOccupant(EntityUid chamberUid, EntityUid expectedQlippoth)
+    {
+        if (!TryComp<ContainmentChamberComponent>(chamberUid, out var chamber) ||
+            chamber.ContainedQlippoth != expectedQlippoth)
+            return false;
+
+        chamber.IsOccupied = false;
+        chamber.ContainedQlippoth = null;
+        Dirty(chamberUid, chamber);
+        return true;
+    }
+
+    public bool IsCorruptionProtected(EntityUid target, EntityUid? sourceQlippoth, out EntityUid protectingChamber)
+    {
+        protectingChamber = EntityUid.Invalid;
+        if (!TryComp<TransformComponent>(target, out var targetTransform))
+            return false;
+
+        var targetPosition = _transform.GetMapCoordinates(target).Position;
+        MapCoordinates? sourceCoordinates = sourceQlippoth is { } source &&
+                                            TryComp<TransformComponent>(source, out _)
+            ? _transform.GetMapCoordinates(source)
+            : null;
+
+        var chambers = EntityQueryEnumerator<ContainmentChamberComponent, TransformComponent>();
+        while (chambers.MoveNext(out var chamberUid, out var chamber, out var chamberTransform))
+        {
+            if (chamber.IsBreached || !chamber.IsBuilt || chamberTransform.MapID != targetTransform.MapID)
+                continue;
+
+            var chamberPosition = _transform.GetMapCoordinates(chamberUid).Position;
+            var targetInside = Vector2.Distance(targetPosition, chamberPosition) <= chamber.ContainmentRadius;
+            var sourceInside = chamber.ContainedQlippoth is { } occupant &&
+                               sourceQlippoth == occupant &&
+                               sourceCoordinates is { } coordinates &&
+                               coordinates.MapId == chamberTransform.MapID &&
+                               Vector2.Distance(coordinates.Position, chamberPosition) <= chamber.ContainmentRadius;
+
+            if (sourceInside == targetInside)
+                continue;
+
+            protectingChamber = chamberUid;
+            return true;
+        }
+
+        return false;
     }
 
     private void BuildContainmentLayout()
@@ -186,12 +443,22 @@ public sealed partial class ContainmentDimensionSystem : EntitySystem
 
         BuildPowerGrid(gridUid);
         SpawnContainmentLights(gridUid);
-        Spawn("ContainmentDimensionExitPortal", new EntityCoordinates(gridUid, new Vector2(-15.5f, 0.5f)));
+        BuildDepartmentSectors(gridUid);
+        foreach (var (department, position) in DepartmentPortals)
+        {
+            var portal = Spawn("ContainmentDimensionExitPortal", new EntityCoordinates(gridUid, position));
+            if (!TryComp<ContainmentPortalComponent>(portal, out var portalComponent))
+                continue;
+
+            portalComponent.Department = department;
+            Dirty(portal, portalComponent);
+            _metadata.SetEntityName(portal, $"{department} Containment Return Portal");
+        }
 
         // These consoles are shared by the containment facility rather than tied to a chamber.
-        Spawn("ComputerQGateTracker", new EntityCoordinates(gridUid, new Vector2(-4.5f, 9.5f)));
-        Spawn("ComputerContainmentBlueprint", new EntityCoordinates(gridUid, new Vector2(3.5f, 9.5f)));
-        Spawn("ComputerQlippothMarket", new EntityCoordinates(gridUid, new Vector2(11.5f, 9.5f)));
+        Spawn("ComputerQGateTracker", new EntityCoordinates(gridUid, new Vector2(-4.5f, -10.5f)));
+        Spawn("ComputerContainmentBlueprint", new EntityCoordinates(gridUid, new Vector2(3.5f, -10.5f)));
+        Spawn("ComputerQlippothMarket", new EntityCoordinates(gridUid, new Vector2(11.5f, -10.5f)));
 
         var commandChamber = SpawnChamberRoom("CommandStarterContainmentChamber", new Vector2(12.5f, -7.5f));
         if (commandChamber != EntityUid.Invalid)
@@ -281,7 +548,7 @@ public sealed partial class ContainmentDimensionSystem : EntitySystem
     {
         chamberUid = EntityUid.Invalid;
         chamberId = string.Empty;
-        if (!CanPlaceChamber(position))
+        if (!IsEngineeringBuildablePosition(position) || !CanPlaceChamber(position))
             return false;
 
         var index = _nextChamberIndex++;
@@ -298,6 +565,11 @@ public sealed partial class ContainmentDimensionSystem : EntitySystem
         _metadata.SetEntityName(chamberUid, $"Engineering Containment Chamber {index + 1}");
         SpawnResearchConsole(position, chamberUid);
         return true;
+    }
+
+    private static bool IsEngineeringBuildablePosition(Vector2 position)
+    {
+        return MathF.Abs(position.Y + 7.5f) <= 0.01f;
     }
 
     private bool CanPlaceChamber(Vector2 center)
@@ -353,6 +625,26 @@ public sealed partial class ContainmentDimensionSystem : EntitySystem
 
         for (var x = -18; x <= 18; x++)
             Spawn("CableApcExtension", new EntityCoordinates(gridUid, new Vector2(x + 0.5f, 0.5f)));
+    }
+
+    private void BuildDepartmentSectors(EntityUid gridUid)
+    {
+        foreach (var (_, center) in DepartmentPortals)
+        {
+            for (var x = -3; x <= 3; x++)
+            for (var y = -3; y <= 3; y++)
+            {
+                if (x != -3 && x != 3 && y != -3 && y != 3)
+                    continue;
+
+                // Each sector opens eastward into the shared facility corridor.
+                if (x == 3 && y == 0)
+                    continue;
+
+                Spawn("WallReinforced",
+                    new EntityCoordinates(gridUid, center + new Vector2(x, y)));
+            }
+        }
     }
 
     private void SpawnContainmentLights(EntityUid gridUid)

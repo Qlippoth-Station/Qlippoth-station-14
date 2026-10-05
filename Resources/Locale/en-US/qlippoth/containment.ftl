@@ -4,11 +4,51 @@ containment-console-title = Qlippoth Containment Console
 containment-console-initializing = Initializing console...
 research-console-title = Qlippoth Research Console
 research-console-waiting = Waiting for research data...
-research-console-scan = Begin Remote Scan
-research-console-extract = Extract Research Data
+research-console-empty = The linked containment chamber is empty.
+research-console-specimen-status = Studying: {$target} | Next experiment available in {$cooldown}s
+research-console-progress = Progress: {$progress}/{$required}
+research-console-discovered = Discovery recorded
+research-console-checkpoint = Species checkpoint:
+research-console-terminal = Final design unlocked
+research-console-gear-issued = Q-Gear has already been issued for this specimen
+research-console-claim-gear = Fabricate and issue Q-Gear
+research-console-activity-observation = Observe
+research-console-activity-resonance = Resonance scan
+research-console-activity-test = Controlled test
+research-console-activity-diagnostics = Containment diagnostics
+qlippoth-research-node-observation = Behavioral baseline
+qlippoth-research-node-observation-desc = Record a stable behavioral signature from the contained specimen.
+qlippoth-research-node-resonance = Resonance profile
+qlippoth-research-node-resonance-desc = Map the specimen's unusual dimensional frequency.
+qlippoth-research-node-controlled-test = Response to stimulus
+qlippoth-research-node-controlled-test-desc = Compare the specimen's response to a controlled stimulus.
+qlippoth-research-node-diagnostics = Field interaction
+qlippoth-research-node-diagnostics-desc = Measure how the containment field changes around the specimen.
+qlippoth-research-node-response = Emergent response
+qlippoth-research-node-response-desc = Correlate behavior under observation and controlled testing.
+qlippoth-research-node-signal = Signal analysis
+qlippoth-research-node-signal-desc = Isolate a repeatable signal from the specimen's containment readings.
+qlippoth-research-node-gear = Q-Gear design
+qlippoth-research-node-gear-desc = The specimen's terminal research has yielded its unique Q-Gear design.
+qlippoth-checkpoint-lantern = Lantern response
+qlippoth-checkpoint-lantern-desc = This specimen's lantern reacts to a specific resonance band.
+qlippoth-checkpoint-edge = Edge stance
+qlippoth-checkpoint-edge-desc = The specimen's defensive and offensive stances follow a measurable pattern.
+qlippoth-checkpoint-threshold = Threshold memory
+qlippoth-checkpoint-threshold-desc = The specimen remembers dimensional boundaries and responds to changes in the containment field.
+qlippoth-checkpoint-abyss = Abyssal field
+qlippoth-checkpoint-abyss-desc = The specimen's field distorts containment readings in a repeatable way.
+qlippoth-checkpoint-horizon = Horizon boundary
+qlippoth-checkpoint-horizon-desc = Map the boundary distortion that follows this Horizon-class specimen.
 
 containment-portal-name = Containment Dimension Portal
 containment-portal-desc = A stable dimensional portal leading to the station's Qlippoth Containment Dimension.
+containment-portal-access-denied = Your access does not authorize use of this departmental containment portal.
+containment-portal-wrong-department = This return portal does not match the department entrance you used.
+containment-portal-destination-unavailable = This portal destination is no longer available. Contact an administrator.
+containment-portal-status = Department link: {$department} | Status: {$status}
+containment-portal-ready = ready
+containment-portal-unavailable = unavailable
 
 containment-chamber-name = Containment Chamber
 containment-chamber-desc = A reinforced containment cell designed to house anomalous Qlippoth entities.
@@ -16,6 +56,8 @@ containment-chamber-occupied = This chamber is currently occupied.
 containment-chamber-empty = This chamber is available for use.
 containment-chamber-not-built = This chamber is not yet fully constructed.
 containment-chamber-breach = ALERT: Containment chamber {$chamber} has breached! Qlippoth containment is compromised.
+containment-chamber-repaired = Containment chamber {$chamber} has been repaired and its alarm has cleared.
+containment-chamber-invalid-build-zone = Engineering chamber kits can only be placed in the marked Engineering construction bay.
 
 ## Transport Capsule
 
@@ -23,7 +65,10 @@ containment-capsule-name = CentCom Transport Capsule
 containment-capsule-desc = A reinforced containment capsule shipped from CentCom. Contains a secured Qlippoth entity. Handle with extreme caution.
 containment-capsule-warning = WARNING: Do not open outside a designated containment chamber. Mishandling may result in a containment breach.
 containment-capsule-breach = The transport capsule has ruptured! The entity is loose!
+containment-capsule-recovery-failed = A capsule was lost with the Containment Dimension, and its stored Cargo recovery point is unavailable. Contact an administrator.
 containment-capsule-transfer-failed = Transport capsule cannot dock with chamber {$chamber}: chamber is occupied, incomplete, or has an invalid target ID.
+containment-capsule-wrong-chamber = Capsule is assigned to {$target}, not {$nearby}.
+containment-capsule-target-unavailable = Capsule cannot dock: target chamber {$chamber} is occupied or incomplete.
 
 ## Engineering Blueprint Console
 
@@ -44,11 +89,6 @@ containment-blueprint-failed = Unable to create a containment chamber blueprint.
 containment-tracker-active = Q-Gate tracker online. Dimensional instability scan initialized.
 
 research-console-no-target = No Qlippoth linked
-research-console-ready = Ready
-research-console-scanning = Scanning: {$progress}
-research-console-status = Target: {$target}
-    Research points: {$points}
-    {$scan}
 
 ## Sectors
 

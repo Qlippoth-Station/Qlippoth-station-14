@@ -12,12 +12,80 @@
   - type: QlippothBreachSealDevice
     sealDuration: 5
 
+# Q-Gear is issued by an individual's terminal research checkpoint rather than unlocked in
+# the station technology database. Species prototypes select one of these dedicated designs.
+- type: entity
+  parent: BaseItem
+  id: QlippothQGearResonanceProbe
+  name: Q-Gear resonance probe
+  description: A specimen-tuned probe that reads dimensional resonance without direct contact.
+  components:
+  - type: Sprite
+    sprite: Objects/Specific/Xenoarchaeology/node_scanner.rsi
+    state: icon
+  - type: Item
+    size: Small
+
+- type: entity
+  parent: BaseItem
+  id: QlippothQGearInversionTongs
+  name: Q-Gear inversion tongs
+  description: Handling tongs balanced around one Qlippoth's anomalous mass signature.
+  components:
+  - type: Sprite
+    sprite: Objects/Specific/Xenoarchaeology/node_scanner.rsi
+    state: icon
+  - type: Item
+    size: Small
+
+- type: entity
+  parent: BaseItem
+  id: QlippothQGearBoundaryAnchor
+  name: Q-Gear boundary anchor
+  description: A portable marker tuned to the containment boundary behavior of its Qlippoth.
+  components:
+  - type: Sprite
+    sprite: Objects/Specific/Xenoarchaeology/node_scanner.rsi
+    state: icon
+  - type: Item
+    size: Small
+
+- type: entity
+  parent: BaseItem
+  id: QlippothQGearGateCompass
+  name: Q-Gear gate compass
+  description: A hand-held directional instrument tuned to the specimen's Q-Gate signature.
+  components:
+  - type: Sprite
+    sprite: Objects/Specific/Xenoarchaeology/node_scanner.rsi
+    state: icon
+  - type: Item
+    size: Small
+
+- type: entity
+  parent: BaseItem
+  id: QlippothQGearHorizonLens
+  name: Q-Gear horizon lens
+  description: A dimensional lens tuned to the boundary signature of a Horizon-class Qlippoth.
+  components:
+  - type: Sprite
+    sprite: Objects/Specific/Xenoarchaeology/node_scanner.rsi
+    state: icon
+  - type: Item
+    size: Small
+
 - type: entity
   parent: BaseBlueprint
   id: BlueprintContainmentChamber
   name: containment chamber blueprint
   description: A Science-approved blueprint for a Qlippoth containment chamber construction kit.
   components:
+  - type: Sprite
+    sprite: Objects/Tools/blueprint.rsi
+    state: icon
+  - type: Item
+    size: Normal
+  - type: QlippothChamberConstructionKit
   - type: Blueprint
     providedRecipes:
     - ContainmentChamberConstructionKit

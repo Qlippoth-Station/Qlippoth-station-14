@@ -1,5 +1,6 @@
 using Content.Shared.Qlippoth;
 using Robust.Shared.GameObjects;
+using Robust.Shared.Prototypes;
 using Robust.Shared.Serialization.Manager.Attributes;
 
 namespace Content.Server.Qlippoth
@@ -32,8 +33,18 @@ namespace Content.Server.Qlippoth
         [DataField]
         public int MarketPrice { get; set; } = 500;
 
-        /// <summary>Research points one research console scan yields while this Qlippoth is contained.</summary>
+        /// <summary>
+        /// Checkpoints guaranteed to occur somewhere in every specimen's randomized personal graph.
+        /// Common discoveries and their topology are generated per specimen at first console use.
+        /// </summary>
         [DataField]
-        public int ResearchPoints { get; set; } = 50;
+        public List<QlippothResearchNode> ResearchCheckpoints { get; set; } = new();
+
+        /// <summary>
+        /// The unique Q-Gear reward at the end of this Qlippoth kind's personal research graph.
+        /// It is issued by its containment research console, not added to station-wide R&amp;D.
+        /// </summary>
+        [DataField]
+        public EntProtoId? ResearchGearPrototype { get; set; }
     }
 }

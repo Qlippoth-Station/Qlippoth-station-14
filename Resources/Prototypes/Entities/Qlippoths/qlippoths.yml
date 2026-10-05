@@ -17,13 +17,14 @@
     # Identity. Every Qlippoth has this; instances override what they need.
     #   gatePhases     -> which Q-Gate phases can bring this Qlippoth (several Qlippoths may share a phase; one is picked by spawnWeight)
     #   dungeon        -> how the rift behind the gate is built for this Qlippoth
-    #   marketPrice / researchPoints -> what it is worth once secured
+    #   marketPrice / researchGearPrototype -> market value and this species' terminal research reward
     # Passive effects (sanity aura, corruption) are NOT tied to phase: add a ProximityInitiation action (see MobQlippothPhase3/4).
     - type: Qlippoth
       gatePhases: [Phase1Rift]
       spawnWeight: 1
       marketPrice: 500
-      researchPoints: 50
+      # Species may replace this default Q-Gear and add guaranteed checkpoints below.
+      researchGearPrototype: QlippothQGearResonanceProbe
       dungeon: !type:ArenaDungeon
         width: 20
         height: 15
@@ -306,7 +307,7 @@
     - type: Qlippoth
       gatePhases: []   # admin-spawn only
       marketPrice: 1500
-      researchPoints: 120
+      researchGearPrototype: QlippothQGearResonanceProbe
     - type: QlippothMovement
       movementType: Inanimate
     - type: PointLight
@@ -890,6 +891,13 @@
             - !type:DebugTraceResult
             - !type:TransferMindResult
               mode: Swap
+        # Research experiments supply the event args needed by the specimen-local progress result.
+        - !type:QlippothAction
+          actionName: testResearchProgress
+          initiation: !type:OnResearchExperimentInitiation
+          results:
+            - !type:AdvanceQlippothResearchResult
+              amount: 1
 
 
 # SHOWCASE INSTANCE - INITIATION TESTER #
@@ -916,7 +924,7 @@
     - type: Qlippoth
       gatePhases: []   # admin-spawn only
       marketPrice: 100
-      researchPoints: 10
+      researchGearPrototype: QlippothQGearResonanceProbe
     - type: QlippothMovement
       movementType: Inanimate
     - type: Sprite
@@ -1233,6 +1241,10 @@
         - !type:QlippothAction
           actionName: alertLevel          # any level
           initiation: !type:OnAlertLevelInitiation
+          results: [ !type:DebugAnnounceResult ]
+        - !type:QlippothAction
+          actionName: researchExperiment  # emitted by a linked chamber's research console
+          initiation: !type:OnResearchExperimentInitiation
           results: [ !type:DebugAnnounceResult ]
         - !type:QlippothAction
           actionName: signal              # ResultShowcaseIdol [18] sends this within 10 tiles
@@ -1645,7 +1657,13 @@
       gatePhases: [Phase1Rift]
       spawnWeight: 0
       marketPrice: 500
-      researchPoints: 50
+      researchGearPrototype: QlippothQGearResonanceProbe
+      researchCheckpoints:
+        - !type:QlippothResearchNode
+          id: lantern-response
+          name: qlippoth-checkpoint-lantern
+          description: qlippoth-checkpoint-lantern-desc
+          activities: [ResonanceScan, ControlledTest]
     - type: MobThresholds
       thresholds:
         0: Alive
@@ -1665,7 +1683,13 @@
       gatePhases: [Phase2Verge]
       spawnWeight: 0
       marketPrice: 1000
-      researchPoints: 100
+      researchGearPrototype: QlippothQGearInversionTongs
+      researchCheckpoints:
+        - !type:QlippothResearchNode
+          id: edge-stance
+          name: qlippoth-checkpoint-edge
+          description: qlippoth-checkpoint-edge-desc
+          activities: [Observation, ControlledTest]
       dungeon: !type:ArenaDungeon
         width: 24
         height: 18
@@ -1688,7 +1712,13 @@
       gatePhases: [Phase3Eclipse]
       spawnWeight: 0
       marketPrice: 2000
-      researchPoints: 150
+      researchGearPrototype: QlippothQGearBoundaryAnchor
+      researchCheckpoints:
+        - !type:QlippothResearchNode
+          id: threshold-memory
+          name: qlippoth-checkpoint-threshold
+          description: qlippoth-checkpoint-threshold-desc
+          activities: [ResonanceScan, ContainmentDiagnostics]
       dungeon: !type:ArenaDungeon
         width: 28
         height: 21
@@ -1712,6 +1742,15 @@
             - !type:DamageSanityResult
               amount: 6
               scaled: true
+        # This is the partial bridge between research experiments and ordinary Qlippoth actions:
+        # a controlled test can provoke this specimen and its result advances that specimen's node.
+        - !type:QlippothAction
+          actionName: researchResponse
+          initiation: !type:OnResearchExperimentInitiation
+            activity: ControlledTest
+          results:
+            - !type:AdvanceQlippothResearchResult
+              amount: 1
 
 - type: entity
   id: MobQlippothPhase4
@@ -1722,7 +1761,13 @@
     - type: Qlippoth
       gatePhases: [Phase4Abyss]
       marketPrice: 4000
-      researchPoints: 200
+      researchGearPrototype: QlippothQGearGateCompass
+      researchCheckpoints:
+        - !type:QlippothResearchNode
+          id: abyssal-field
+          name: qlippoth-checkpoint-abyss
+          description: qlippoth-checkpoint-abyss-desc
+          activities: [ContainmentDiagnostics, ControlledTest]
       dungeon: !type:ArenaDungeon
         width: 32
         height: 24
@@ -1752,29 +1797,44 @@
           initiation: !type:ProximityInitiation
             interval: 1
             range: 5
+            filter: { onlyPlayers: true, onlyAlive: true, outsideIntactContainment: true }
           results:
             - !type:ApplyCorruptionResult
               chance: 0.08
-              duration: 60
-              severity: 1
-              sanityDrainPerSecond: 2
-              pulseInterval: 10
-              spreadChance: 0.15
-              spreadRadius: 5
+              duration: 90
+              severity: 2
+              sanityDrainPerSecond: 2.5
+              pulseInterval: 8
+              spreadChance: 0.2
+              spreadRadius: 5.5
         - !type:QlippothAction
           actionName: corruptionTouch # fired once per crew member this Qlippoth corrupts
           initiation: !type:OnCorruptionAppliedInitiation
           results:
             - !type:SpawnEffectResult
               prototype: EffectVoidBlink
-            - !type:PopupResult
-              message: qlippoth-corruption-applied
         - !type:QlippothAction
           actionName: corruptionPulse # fired every qlippoth.corruption_pulse_interval seconds per corrupted crew member
           initiation: !type:OnCorruptionPulseInitiation
           results:
             - !type:SpawnEffectResult
               prototype: EffectVoidBlink
+        - !type:QlippothAction
+          actionName: containmentBreachCorruption
+          initiation: !type:OnContainmentBreachedInitiation
+          results:
+            - !type:ApplyCorruptionResult
+              duration: 45
+              severity: 2
+              sanityDrainPerSecond: 2
+              pulseInterval: 10
+              spreadChance: 0.1
+              spreadRadius: 4
+              targeting:
+                mode: InRange
+                range: 6
+                maxTargets: 3
+                filter: { onlyPlayers: true, onlyAlive: true, outsideIntactContainment: true }
 
 - type: entity
   id: MobQlippothPhase5
@@ -1785,7 +1845,13 @@
     - type: Qlippoth
       gatePhases: [Phase5Horizon]
       marketPrice: 8000
-      researchPoints: 250
+      researchGearPrototype: QlippothQGearHorizonLens
+      researchCheckpoints:
+        - !type:QlippothResearchNode
+          id: horizon-boundary
+          name: qlippoth-checkpoint-horizon
+          description: qlippoth-checkpoint-horizon-desc
+          activities: [ResonanceScan, ContainmentDiagnostics]
       dungeon: !type:ArenaDungeon
         width: 36
         height: 27
@@ -1815,23 +1881,22 @@
           initiation: !type:ProximityInitiation
             interval: 1
             range: 5
+            filter: { onlyPlayers: true, onlyAlive: true, outsideIntactContainment: true }
           results:
             - !type:ApplyCorruptionResult
               chance: 0.1
-              duration: 60
-              severity: 2
-              sanityDrainPerSecond: 2
-              pulseInterval: 10
-              spreadChance: 0.15
-              spreadRadius: 5
+              duration: 120
+              severity: 3
+              sanityDrainPerSecond: 3
+              pulseInterval: 6
+              spreadChance: 0.25
+              spreadRadius: 6
         - !type:QlippothAction
           actionName: corruptionTouch
           initiation: !type:OnCorruptionAppliedInitiation
           results:
             - !type:SpawnEffectResult
               prototype: EffectVoidBlink
-            - !type:PopupResult
-              message: qlippoth-corruption-applied
         - !type:QlippothAction
           actionName: corruptionPulse
           initiation: !type:OnCorruptionPulseInitiation
@@ -1840,6 +1905,22 @@
               prototype: EffectVoidBlink
             - !type:DamageSanityResult # on top of the passive drain the corruption itself applies
               amount: 5
+        - !type:QlippothAction
+          actionName: containmentBreachCorruption
+          initiation: !type:OnContainmentBreachedInitiation
+          results:
+            - !type:ApplyCorruptionResult
+              duration: 60
+              severity: 3
+              sanityDrainPerSecond: 3
+              pulseInterval: 8
+              spreadChance: 0.15
+              spreadRadius: 5
+              targeting:
+                mode: InRange
+                range: 8
+                maxTargets: 5
+                filter: { onlyPlayers: true, onlyAlive: true, outsideIntactContainment: true }
 #endregion
 
 #region Game Ready Qlippoths
@@ -1855,7 +1936,13 @@
     - type: Qlippoth
       gatePhases: [Phase1Rift]
       marketPrice: 500
-      researchPoints: 50
+      researchGearPrototype: QlippothQGearResonanceProbe
+      researchCheckpoints:
+        - !type:QlippothResearchNode
+          id: lantern-response
+          name: qlippoth-checkpoint-lantern
+          description: qlippoth-checkpoint-lantern-desc
+          activities: [ResonanceScan, ControlledTest]
       dungeon: !type:ArenaDungeon
         width: 20
         height: 15
@@ -1958,7 +2045,13 @@
     - type: Qlippoth
       gatePhases: [Phase2Verge]
       marketPrice: 1000
-      researchPoints: 100
+      researchGearPrototype: QlippothQGearInversionTongs
+      researchCheckpoints:
+        - !type:QlippothResearchNode
+          id: edge-stance
+          name: qlippoth-checkpoint-edge
+          description: qlippoth-checkpoint-edge-desc
+          activities: [Observation, ControlledTest]
       dungeon: !type:ArenaDungeon
         width: 24
         height: 18
@@ -2062,7 +2155,13 @@
     - type: Qlippoth
       gatePhases: [Phase3Eclipse]
       marketPrice: 2000
-      researchPoints: 150
+      researchGearPrototype: QlippothQGearGateCompass
+      researchCheckpoints:
+        - !type:QlippothResearchNode
+          id: threshold-memory
+          name: qlippoth-checkpoint-threshold
+          description: qlippoth-checkpoint-threshold-desc
+          activities: [ResonanceScan, ContainmentDiagnostics]
       dungeon: !type:ArenaDungeon
         width: 28
         height: 21

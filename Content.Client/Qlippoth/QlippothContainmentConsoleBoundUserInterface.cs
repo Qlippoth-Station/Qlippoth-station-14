@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Numerics;
 using Content.Shared.Qlippoth.Components;
 using Robust.Client.UserInterface;
@@ -17,7 +18,10 @@ public sealed class QlippothContainmentConsoleBoundUserInterface(EntityUid owner
     private Button? _purchaseButton;
     private Button? _buildButton;
     private OptionButton? _marketSelection;
+    private OptionButton? _chamberSelection;
     private readonly List<string> _marketProtoIds = new();
+    private readonly List<string> _marketChamberIds = new();
+    private string _selectedMarketChamberId = string.Empty;
 
     protected override void Open()
     {
@@ -39,7 +43,7 @@ public sealed class QlippothContainmentConsoleBoundUserInterface(EntityUid owner
         content.AddChild(detailScroll);
 
         _purchaseButton = new Button { Text = Loc.GetString("containment-market-purchase") };
-        _purchaseButton.OnPressed += _ => SendMessage(new QlippothMarketPurchaseMessage());
+        _purchaseButton.OnPressed += _ => SendMessage(new QlippothMarketPurchaseMessage(_selectedMarketChamberId));
         content.AddChild(_purchaseButton);
 
         _marketSelection = new OptionButton();
@@ -49,6 +53,15 @@ public sealed class QlippothContainmentConsoleBoundUserInterface(EntityUid owner
                 SendMessage(new QlippothMarketSelectMessage(_marketProtoIds[args.Id]));
         };
         content.AddChild(_marketSelection);
+
+        _chamberSelection = new OptionButton();
+        _chamberSelection.OnItemSelected += args =>
+        {
+            if (args.Id >= 0 && args.Id < _marketChamberIds.Count)
+                _selectedMarketChamberId = _marketChamberIds[args.Id];
+        };
+        content.AddChild(new Label { Text = Loc.GetString("containment-market-destination") });
+        content.AddChild(_chamberSelection);
 
         _buildButton = new Button { Text = Loc.GetString("containment-blueprint-build") };
         _buildButton.OnPressed += _ => SendMessage(new ContainmentBlueprintBuildMessage());
@@ -69,6 +82,7 @@ public sealed class QlippothContainmentConsoleBoundUserInterface(EntityUid owner
         _detail.Text = $"{consoleState.Status}\n\n{consoleState.Detail}";
         _purchaseButton!.Visible = consoleState.Title.Contains("Auction", StringComparison.OrdinalIgnoreCase);
         _marketSelection!.Visible = _purchaseButton.Visible;
+        _chamberSelection!.Visible = _purchaseButton.Visible;
         _marketSelection.Clear();
         _marketProtoIds.Clear();
         foreach (var entry in consoleState.MarketEntries)
@@ -76,6 +90,23 @@ public sealed class QlippothContainmentConsoleBoundUserInterface(EntityUid owner
             _marketProtoIds.Add(entry.ProtoId);
             _marketSelection.AddItem($"{entry.Name} | {entry.Phase} | {entry.Price}", _marketProtoIds.Count - 1);
         }
+        _chamberSelection.Clear();
+        _marketChamberIds.Clear();
+        foreach (var chamber in consoleState.AvailableChambers)
+        {
+            _marketChamberIds.Add(chamber.ChamberId);
+            _chamberSelection.AddItem($"{chamber.Sector} | {chamber.ChamberId}", _marketChamberIds.Count - 1);
+        }
+
+        if (!_marketChamberIds.Contains(_selectedMarketChamberId))
+            _selectedMarketChamberId = _marketChamberIds.FirstOrDefault() ?? string.Empty;
+
+        if (_selectedMarketChamberId.Length > 0)
+            _chamberSelection.SelectId(_marketChamberIds.IndexOf(_selectedMarketChamberId));
+
+        _purchaseButton.Disabled = _selectedMarketChamberId.Length == 0;
+        if (_marketChamberIds.Count == 0 && _purchaseButton.Visible)
+            _detail.Text += $"\n\n{Loc.GetString("containment-market-no-chambers")}";
         _buildButton!.Visible = consoleState.Title.Contains("Blueprint", StringComparison.OrdinalIgnoreCase);
     }
 

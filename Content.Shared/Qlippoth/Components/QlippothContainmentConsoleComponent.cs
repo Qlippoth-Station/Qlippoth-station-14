@@ -37,7 +37,15 @@ public enum ContainmentBlueprintConsoleUiKey : byte
 }
 
 [Serializable, NetSerializable]
-public sealed class QlippothMarketPurchaseMessage : BoundUserInterfaceMessage;
+public sealed class QlippothMarketPurchaseMessage : BoundUserInterfaceMessage
+{
+    public string TargetChamberId;
+
+    public QlippothMarketPurchaseMessage(string targetChamberId)
+    {
+        TargetChamberId = targetChamberId;
+    }
+}
 
 [Serializable, NetSerializable]
 public sealed class QlippothMarketSelectMessage : BoundUserInterfaceMessage
@@ -60,14 +68,29 @@ public sealed class QlippothContainmentConsoleBuiState : BoundUserInterfaceState
     public string Status;
     public string Detail;
     public List<QlippothMarketEntry> MarketEntries;
+    public List<QlippothAvailableChamber> AvailableChambers;
 
     public QlippothContainmentConsoleBuiState(string title, string status, string detail,
-        List<QlippothMarketEntry>? marketEntries = null)
+        List<QlippothMarketEntry>? marketEntries = null, List<QlippothAvailableChamber>? availableChambers = null)
     {
         Title = title;
         Status = status;
         Detail = detail;
         MarketEntries = marketEntries ?? new List<QlippothMarketEntry>();
+        AvailableChambers = availableChambers ?? new List<QlippothAvailableChamber>();
+    }
+}
+
+[Serializable, NetSerializable]
+public sealed class QlippothAvailableChamber
+{
+    public string ChamberId;
+    public string Sector;
+
+    public QlippothAvailableChamber(string chamberId, string sector)
+    {
+        ChamberId = chamberId;
+        Sector = sector;
     }
 }
 
