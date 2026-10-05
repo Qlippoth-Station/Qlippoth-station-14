@@ -935,8 +935,10 @@
 #
 # How it works:
 #   - One action per initiation. The ONLY result is DebugAnnounceResult, so every firing is a station-wide
-#     announcement: "<actionName>" INITIATION, TRIGGERED "<InitiationClass>" RESULT [idol -> target].
+#     announcement: "<actionName>" INITIATION, TRIGGERED "<InitiationClass>" RESULT [idol -> target] trigger: <what you did>.
+#     The trailing "trigger:" note says what fired it, so an unexpected announcement explains itself.
 #     You can see it from anywhere on the map; the same line also goes to the server log.
+#   - Right-click the idol -> Qlippoth -> "How do I trigger these?" whispers you a cheat sheet grouped by how to fire them.
 #   - It is a small item, so hand / pocket / throw / container initiations can be tested by hand.
 #   - Polled initiations (interval, range, gas, temperature...) have long intervals or cooldowns so they do not spam.
 #   - Pairs with ResultShowcaseIdol: its [18] Events verb sends "showcase-test", which OnSignal here listens to.
@@ -985,345 +987,514 @@
         - !type:QlippothAction
           actionName: pull
           initiation: !type:OnPullInitiation
-          results: [ !type:DebugAnnounceResult ]
+          results:
+            - !type:DebugAnnounceResult
+              note: "trigger: someone grabbed / started pulling it"
         - !type:QlippothAction
           actionName: pullStopped
           initiation: !type:OnPullStoppedInitiation
-          results: [ !type:DebugAnnounceResult ]
+          results:
+            - !type:DebugAnnounceResult
+              note: "trigger: the pull was released"
         - !type:QlippothAction
           actionName: pickedUp
           initiation: !type:OnPickedUpInitiation
-          results: [ !type:DebugAnnounceResult ]
+          results:
+            - !type:DebugAnnounceResult
+              note: "trigger: picked up into a hand"
         - !type:QlippothAction
           actionName: dropped
           initiation: !type:OnDroppedInitiation
-          results: [ !type:DebugAnnounceResult ]
+          results:
+            - !type:DebugAnnounceResult
+              note: "trigger: dropped from a hand"
         - !type:QlippothAction
           actionName: holderDamaged       # hold it and get hit
           initiation: !type:OnHolderDamagedInitiation
           cooldown: 2
-          results: [ !type:DebugAnnounceResult ]
+          results:
+            - !type:DebugAnnounceResult
+              note: "trigger: whoever holds it took damage (2 s cooldown)"
         - !type:QlippothAction
           actionName: meleeHit            # hit something with it
           initiation: !type:OnMeleeHitInitiation
-          results: [ !type:DebugAnnounceResult ]
+          results:
+            - !type:DebugAnnounceResult
+              note: "trigger: it was swung and hit something"
         - !type:QlippothAction
           actionName: corruptionApplied   # NOT FIREABLE here unless this idol applies corruption
           initiation: !type:OnCorruptionAppliedInitiation
-          results: [ !type:DebugAnnounceResult ]
+          results:
+            - !type:DebugAnnounceResult
+              note: "trigger: this idol corrupted someone (needs an ApplyCorruption result on it, so normally never)"
         - !type:QlippothAction
           actionName: corruptionPulse     # NOT FIREABLE here unless this idol applies corruption
           initiation: !type:OnCorruptionPulseInitiation
-          results: [ !type:DebugAnnounceResult ]
+          results:
+            - !type:DebugAnnounceResult
+              note: "trigger: a corruption it applied pulsed (normally never)"
         - !type:QlippothAction
           actionName: damaged
           initiation: !type:OnDamagedInitiation
           cooldown: 2
-          results: [ !type:DebugAnnounceResult ]
+          results:
+            - !type:DebugAnnounceResult
+              note: "trigger: the idol took damage (2 s cooldown)"
         - !type:QlippothAction
           actionName: mobState            # NOT FIREABLE: the idol has no MobState
           initiation: !type:OnMobStateInitiation
-          results: [ !type:DebugAnnounceResult ]
+          results:
+            - !type:DebugAnnounceResult
+              note: "NOT FIREABLE: the idol has no MobState"
         - !type:QlippothAction
           actionName: holderMobState      # hold it while you crit / die
           initiation: !type:OnHolderMobStateInitiation
-          results: [ !type:DebugAnnounceResult ]
+          results:
+            - !type:DebugAnnounceResult
+              note: "trigger: its holder went crit / died / recovered"
         - !type:QlippothAction
           actionName: destroyed           # 50 damage
           initiation: !type:OnDestroyedInitiation
-          results: [ !type:DebugAnnounceResult ]
+          results:
+            - !type:DebugAnnounceResult
+              note: "trigger: the idol reached 50 damage and broke"
         - !type:QlippothAction
           actionName: spawn
           initiation: !type:OnSpawnInitiation
-          results: [ !type:DebugAnnounceResult ]
+          results:
+            - !type:DebugAnnounceResult
+              note: "trigger: the idol was spawned"
         - !type:QlippothAction
           actionName: collide             # throw it at someone
           initiation: !type:OnCollideInitiation
           cooldown: 2
-          results: [ !type:DebugAnnounceResult ]
+          results:
+            - !type:DebugAnnounceResult
+              note: "trigger: it physically hit something (thrown into a mob / wall, 2 s cooldown)"
         - !type:QlippothAction
           actionName: stepTrigger         # NOT FIREABLE: the idol has no StepTrigger
           initiation: !type:OnStepTriggerInitiation
-          results: [ !type:DebugAnnounceResult ]
+          results:
+            - !type:DebugAnnounceResult
+              note: "NOT FIREABLE: the idol has no StepTrigger"
         - !type:QlippothAction
           actionName: anchorChanged       # NOT FIREABLE: an item cannot be anchored
           initiation: !type:OnAnchorChangedInitiation
-          results: [ !type:DebugAnnounceResult ]
+          results:
+            - !type:DebugAnnounceResult
+              note: "NOT FIREABLE: items cannot be anchored"
         - !type:QlippothAction
           actionName: powerChanged        # NOT FIREABLE: the idol has no power receiver
           initiation: !type:OnPowerChangedInitiation
-          results: [ !type:DebugAnnounceResult ]
+          results:
+            - !type:DebugAnnounceResult
+              note: "NOT FIREABLE: the idol has no power receiver"
         - !type:QlippothAction
           actionName: stateChanged        # NOT FIREABLE: no result here changes state
           initiation: !type:OnStateChangedInitiation
             key: showcase
-          results: [ !type:DebugAnnounceResult ]
+          results:
+            - !type:DebugAnnounceResult
+              note: "NOT FIREABLE here: nothing changes the 'showcase' state key"
         - !type:QlippothAction
           actionName: offspringDied       # NOT FIREABLE: this idol spawns no offspring
           initiation: !type:OnOffspringDiedInitiation
-          results: [ !type:DebugAnnounceResult ]
+          results:
+            - !type:DebugAnnounceResult
+              note: "NOT FIREABLE here: this idol spawns nothing"
         - !type:QlippothAction
           actionName: enterRange
           initiation: !type:OnEnterRangeInitiation
             range: 3
           cooldown: 10
-          results: [ !type:DebugAnnounceResult ]
+          results:
+            - !type:DebugAnnounceResult
+              note: "trigger: a mob came within 3 tiles (10 s cooldown)"
         - !type:QlippothAction
           actionName: leaveRange
           initiation: !type:OnLeaveRangeInitiation
             range: 3
           cooldown: 10
-          results: [ !type:DebugAnnounceResult ]
+          results:
+            - !type:DebugAnnounceResult
+              note: "trigger: a mob left the 3-tile radius (10 s cooldown)"
         - !type:QlippothAction
           actionName: crowd               # 2+ people within 6 tiles
           initiation: !type:OnCrowdInitiation
             minCount: 2
           cooldown: 10
-          results: [ !type:DebugAnnounceResult ]
+          results:
+            - !type:DebugAnnounceResult
+              note: "trigger: 2+ mobs within 6 tiles (10 s cooldown)"
         - !type:QlippothAction
           actionName: gas                 # 1+ mol plasma on its tile
           initiation: !type:OnGasInitiation
             gas: Plasma
-          results: [ !type:DebugAnnounceResult ]
+          results:
+            - !type:DebugAnnounceResult
+              note: "trigger: 1+ mol plasma on its tile"
         - !type:QlippothAction
           actionName: temperature         # below 250 K (e.g. space)
           initiation: !type:OnTemperatureInitiation
             max: 250
-          results: [ !type:DebugAnnounceResult ]
+          results:
+            - !type:DebugAnnounceResult
+              note: "trigger: its tile is below 250 K (space / freezer)"
         - !type:QlippothAction
           actionName: pressure            # below 50 kPa (e.g. space)
           initiation: !type:OnPressureInitiation
             max: 50
-          results: [ !type:DebugAnnounceResult ]
+          results:
+            - !type:DebugAnnounceResult
+              note: "trigger: its tile is below 50 kPa (space)"
         - !type:QlippothAction
           actionName: healthThreshold     # damage above 10
           initiation: !type:OnHealthThresholdInitiation
             threshold: 10
           cooldown: 10
-          results: [ !type:DebugAnnounceResult ]
+          results:
+            - !type:DebugAnnounceResult
+              note: "trigger: its damage went above 10 (10 s cooldown)"
         - !type:QlippothAction
           actionName: holderSanity        # held by someone with sanity 0-100
           initiation: !type:OnHolderSanityInitiation
             max: 100
-          results: [ !type:DebugAnnounceResult ]
+          results:
+            - !type:DebugAnnounceResult
+              note: "trigger: held by someone whose sanity is 0-100, i.e. anyone"
         - !type:QlippothAction
           actionName: lightLevel          # carry it into the dark
           initiation: !type:OnLightLevelInitiation
-          results: [ !type:DebugAnnounceResult ]
+          results:
+            - !type:DebugAnnounceResult
+              note: "trigger: no lit light source in range (carried into the dark)"
 
         # ---------------- External ----------------
         - !type:QlippothAction
           actionName: action              # press the Seek button while holding it
           initiation: !type:OnActionInitiation
             key: seek
-          results: [ !type:DebugAnnounceResult ]
+          results:
+            - !type:DebugAnnounceResult
+              note: "trigger: the holder pressed the Seek action button"
         - !type:QlippothAction
           actionName: usedOn              # hold it and click another entity
           initiation: !type:OnUsedOnInitiation
-          results: [ !type:DebugAnnounceResult ]
+          results:
+            - !type:DebugAnnounceResult
+              note: "trigger: the holder clicked another entity with it"
         - !type:QlippothAction
           actionName: activate            # E / activate it on the floor
           initiation: !type:OnActivateInitiation
-          results: [ !type:DebugAnnounceResult ]
+          results:
+            - !type:DebugAnnounceResult
+              note: "trigger: activated with E / clicked while on the floor"
         - !type:QlippothAction
           actionName: interactHand        # empty-hand click
           initiation: !type:OnInteractHandInitiation
-          results: [ !type:DebugAnnounceResult ]
+          results:
+            - !type:DebugAnnounceResult
+              note: "trigger: clicked with an empty hand"
         - !type:QlippothAction
           actionName: useInHand           # Z while holding it
           initiation: !type:OnUseInHandInitiation
-          results: [ !type:DebugAnnounceResult ]
+          results:
+            - !type:DebugAnnounceResult
+              note: "trigger: Z / use-in-hand while holding it"
         - !type:QlippothAction
           actionName: interactUsing       # click it with an item
           initiation: !type:OnInteractUsingInitiation
-          results: [ !type:DebugAnnounceResult ]
+          results:
+            - !type:DebugAnnounceResult
+              note: "trigger: clicked with an item in hand"
         - !type:QlippothAction
           actionName: attacked            # hit it
           initiation: !type:OnAttackedInitiation
           cooldown: 2
-          results: [ !type:DebugAnnounceResult ]
+          results:
+            - !type:DebugAnnounceResult
+              note: "trigger: melee hit on the idol (2 s cooldown)"
         - !type:QlippothAction
           actionName: thrown
           initiation: !type:OnThrownInitiation
-          results: [ !type:DebugAnnounceResult ]
+          results:
+            - !type:DebugAnnounceResult
+              note: "trigger: it was thrown"
         - !type:QlippothAction
           actionName: land
           initiation: !type:OnLandInitiation
-          results: [ !type:DebugAnnounceResult ]
+          results:
+            - !type:DebugAnnounceResult
+              note: "trigger: the throw landed"
         - !type:QlippothAction
           actionName: throwHit            # throw it at someone
           initiation: !type:OnThrowHitInitiation
-          results: [ !type:DebugAnnounceResult ]
+          results:
+            - !type:DebugAnnounceResult
+              note: "trigger: the throw hit something"
         - !type:QlippothAction
           actionName: equipped            # put it in a pocket
           initiation: !type:OnEquippedInitiation
-          results: [ !type:DebugAnnounceResult ]
+          results:
+            - !type:DebugAnnounceResult
+              note: "trigger: put into a pocket / clothing slot"
         - !type:QlippothAction
           actionName: unequipped          # take it out of the pocket
           initiation: !type:OnUnequippedInitiation
-          results: [ !type:DebugAnnounceResult ]
+          results:
+            - !type:DebugAnnounceResult
+              note: "trigger: taken out of a pocket / clothing slot"
         - !type:QlippothAction
           actionName: heard               # say "idol" near it
           initiation: !type:OnHeardInitiation
             keywords: [idol]
-          results: [ !type:DebugAnnounceResult ]
+          results:
+            - !type:DebugAnnounceResult
+              note: "trigger: someone said 'idol' within earshot"
         - !type:QlippothAction
           actionName: insertedIntoContainer # put it in a bag / crate
           initiation: !type:OnInsertedIntoContainerInitiation
-          results: [ !type:DebugAnnounceResult ]
+          results:
+            - !type:DebugAnnounceResult
+              note: "trigger: put into a bag / crate / locker"
         - !type:QlippothAction
           actionName: removedFromContainer
           initiation: !type:OnRemovedFromContainerInitiation
-          results: [ !type:DebugAnnounceResult ]
+          results:
+            - !type:DebugAnnounceResult
+              note: "trigger: taken out of a bag / crate / locker"
         - !type:QlippothAction
           actionName: entityInserted      # NOT FIREABLE: the idol has no container of its own
           initiation: !type:OnEntityInsertedInitiation
-          results: [ !type:DebugAnnounceResult ]
+          results:
+            - !type:DebugAnnounceResult
+              note: "NOT FIREABLE: the idol has no container of its own"
         - !type:QlippothAction
           actionName: entityRemoved       # NOT FIREABLE: the idol has no container of its own
           initiation: !type:OnEntityRemovedInitiation
-          results: [ !type:DebugAnnounceResult ]
+          results:
+            - !type:DebugAnnounceResult
+              note: "NOT FIREABLE: the idol has no container of its own"
 
         # ---------------- Internal (need a player controlling the idol: admin "control mob") ----------------
         - !type:QlippothAction
           actionName: selfAction          # the controlled idol presses its own Seek button
           initiation: !type:OnSelfActionInitiation
             key: seek
-          results: [ !type:DebugAnnounceResult ]
+          results:
+            - !type:DebugAnnounceResult
+              note: "trigger: a player controlling the idol pressed its Seek button"
         - !type:QlippothAction
           actionName: chain               # NOT FIREABLE: no ChainResult here (see ResultShowcaseIdol)
           initiation: !type:OnChainInitiation
             key: showcase
-          results: [ !type:DebugAnnounceResult ]
+          results:
+            - !type:DebugAnnounceResult
+              note: "NOT FIREABLE here: nothing chains to key 'showcase' (ChainResult lives on ResultShowcaseIdol [07])"
         - !type:QlippothAction
           actionName: spoke
           initiation: !type:OnSpokeInitiation
-          results: [ !type:DebugAnnounceResult ]
+          results:
+            - !type:DebugAnnounceResult
+              note: "trigger: a player controlling the idol spoke"
         - !type:QlippothAction
           actionName: emote
           initiation: !type:OnEmoteInitiation
-          results: [ !type:DebugAnnounceResult ]
+          results:
+            - !type:DebugAnnounceResult
+              note: "trigger: a player controlling the idol emoted"
         - !type:QlippothAction
           actionName: mindAdded
           initiation: !type:OnMindAddedInitiation
-          results: [ !type:DebugAnnounceResult ]
+          results:
+            - !type:DebugAnnounceResult
+              note: "trigger: a player took control of the idol"
         - !type:QlippothAction
           actionName: mindRemoved
           initiation: !type:OnMindRemovedInitiation
-          results: [ !type:DebugAnnounceResult ]
+          results:
+            - !type:DebugAnnounceResult
+              note: "trigger: the controlling player left the idol"
         - !type:QlippothAction
           actionName: selfMeleeHit        # NOT FIREABLE: the idol has no melee attack of its own
           initiation: !type:OnSelfMeleeHitInitiation
-          results: [ !type:DebugAnnounceResult ]
+          results:
+            - !type:DebugAnnounceResult
+              note: "NOT FIREABLE: the idol cannot melee by itself"
 
         # ---------------- Timed ----------------
         - !type:QlippothAction
           actionName: interval            # every 60 s
           initiation: !type:IntervalInitiation
             interval: 60
-          results: [ !type:DebugAnnounceResult ]
+          results:
+            - !type:DebugAnnounceResult
+              note: "trigger: 60 s timer"
         - !type:QlippothAction
           actionName: proximity           # every 30 s while someone is within 3 tiles
           initiation: !type:ProximityInitiation
             interval: 30
             range: 3
-          results: [ !type:DebugAnnounceResult ]
+          results:
+            - !type:DebugAnnounceResult
+              note: "trigger: 30 s timer, only while someone is within 3 tiles"
         - !type:QlippothAction
           actionName: afterDelay          # once, 10 s after spawn
           initiation: !type:AfterDelayInitiation
             delay: 10
-          results: [ !type:DebugAnnounceResult ]
+          results:
+            - !type:DebugAnnounceResult
+              note: "trigger: once, 10 s after spawn"
         - !type:QlippothAction
           actionName: roundTime           # once the round is 60 s old
           initiation: !type:RoundTimeInitiation
             atRoundTime: 60
-          results: [ !type:DebugAnnounceResult ]
+          results:
+            - !type:DebugAnnounceResult
+              note: "trigger: once, when the round is 60 s old"
         - !type:QlippothAction
           actionName: whileState          # every 120 s while showcase = on (always)
           initiation: !type:WhileStateInitiation
             key: showcase
             value: "on"
             interval: 120
-          results: [ !type:DebugAnnounceResult ]
+          results:
+            - !type:DebugAnnounceResult
+              note: "trigger: 120 s timer while state showcase=on (always on here)"
         - !type:QlippothAction
           actionName: whilePulled         # every 5 s while pulled
           initiation: !type:WhilePulledInitiation
             interval: 5
-          results: [ !type:DebugAnnounceResult ]
+          results:
+            - !type:DebugAnnounceResult
+              note: "trigger: 5 s timer while being pulled"
         - !type:QlippothAction
           actionName: whileInContainer    # every 10 s while in a bag
           initiation: !type:WhileInContainerInitiation
             interval: 10
-          results: [ !type:DebugAnnounceResult ]
+          results:
+            - !type:DebugAnnounceResult
+              note: "trigger: 10 s timer while inside a container"
 
         # ---------------- Event based ----------------
         - !type:QlippothAction
           actionName: gameRuleStarted     # any rule
           initiation: !type:OnGameRuleStartedInitiation
-          results: [ !type:DebugAnnounceResult ]
+          results:
+            - !type:DebugAnnounceResult
+              note: "trigger: any game rule started"
         - !type:QlippothAction
           actionName: gameRuleEnded       # any rule
           initiation: !type:OnGameRuleEndedInitiation
-          results: [ !type:DebugAnnounceResult ]
+          results:
+            - !type:DebugAnnounceResult
+              note: "trigger: any game rule ended"
         - !type:QlippothAction
           actionName: alertLevel          # any level
           initiation: !type:OnAlertLevelInitiation
-          results: [ !type:DebugAnnounceResult ]
+          results:
+            - !type:DebugAnnounceResult
+              note: "trigger: the station alert level changed"
         - !type:QlippothAction
           actionName: signal              # ResultShowcaseIdol [18] sends this within 10 tiles
           initiation: !type:OnSignalInitiation
             signal: showcase-test
-          results: [ !type:DebugAnnounceResult ]
+          results:
+            - !type:DebugAnnounceResult
+              note: "trigger: received 'showcase-test' (ResultShowcaseIdol [18] within 10 tiles)"
         - !type:QlippothAction
           actionName: arrived             # only when it comes through a gate / capsule (admin-spawn does not count)
           initiation: !type:OnArrivedInitiation
-          results: [ !type:DebugAnnounceResult ]
+          results:
+            - !type:DebugAnnounceResult
+              note: "trigger: came through a gate / capsule (admin spawn does not count)"
         - !type:QlippothAction
           actionName: contained
           initiation: !type:OnContainedInitiation
-          results: [ !type:DebugAnnounceResult ]
+          results:
+            - !type:DebugAnnounceResult
+              note: "trigger: placed into a containment chamber"
         - !type:QlippothAction
           actionName: containmentBreached
           initiation: !type:OnContainmentBreachedInitiation
-          results: [ !type:DebugAnnounceResult ]
+          results:
+            - !type:DebugAnnounceResult
+              note: "trigger: its containment chamber was breached"
         - !type:QlippothAction
           actionName: escapedContainment
           initiation: !type:OnEscapedContainmentInitiation
-          results: [ !type:DebugAnnounceResult ]
+          results:
+            - !type:DebugAnnounceResult
+              note: "trigger: it left containment"
         - !type:QlippothAction
           actionName: gateCleared
           initiation: !type:OnGateClearedInitiation
-          results: [ !type:DebugAnnounceResult ]
+          results:
+            - !type:DebugAnnounceResult
+              note: "trigger: a gate was cleared"
         - !type:QlippothAction
           actionName: anyGateBreached
           initiation: !type:OnAnyGateBreachedInitiation
-          results: [ !type:DebugAnnounceResult ]
+          results:
+            - !type:DebugAnnounceResult
+              note: "trigger: any gate was breached"
         - !type:QlippothAction
           actionName: gateSpawned
           initiation: !type:OnGateSpawnedInitiation
-          results: [ !type:DebugAnnounceResult ]
+          results:
+            - !type:DebugAnnounceResult
+              note: "trigger: a gate spawned"
         - !type:QlippothAction
           actionName: shuttleCalled       # called or recalled
           initiation: !type:OnShuttleCalledInitiation
             called: null
-          results: [ !type:DebugAnnounceResult ]
+          results:
+            - !type:DebugAnnounceResult
+              note: "trigger: evac shuttle called or recalled"
         - !type:QlippothAction
           actionName: roundEnd
           initiation: !type:OnRoundEndInitiation
-          results: [ !type:DebugAnnounceResult ]
+          results:
+            - !type:DebugAnnounceResult
+              note: "trigger: the round ended"
 
         # ---------------- Interface ----------------
+        - !type:QlippothAction
+          actionName: howToTest           # whispers the tester a cheat sheet; not an initiation under test
+          continueOnFailure: true
+          initiation: !type:VerbInitiation
+            key: howto
+            text: "How do I trigger these? (cheat sheet)"
+            priority: 100
+          results:
+            - !type:WhisperToResult
+              message: "IN HAND: pick up, drop, Z (use in hand), click another thing with it (usedOn), press the Seek button (action), get hit while holding it (holderDamaged), go crit while holding it (holderMobState), swing it at something (meleeHit)."
+            - !type:WhisperToResult
+              message: "ON THE FLOOR: E (activate), empty-hand click (interactHand), click with an item (interactUsing), hit it (attacked, damaged, healthThreshold above 10, destroyed at 50), pull it (pull, whilePulled every 5 s, pullStopped), shift-click (examined), walk up to it / away (enterRange, leaveRange at 3 tiles), bring a friend (crowd, 2+ within 6 tiles)."
+            - !type:WhisperToResult
+              message: "THROW / STORE: throw it (thrown, land, throwHit, collide), pocket it (equipped, unequipped), bag or crate it (insertedIntoContainer, whileInContainer every 10 s, removedFromContainer)."
+            - !type:WhisperToResult
+              message: "ENVIRONMENT: plasma on its tile (gas), below 250 K (temperature), below 50 kPa (pressure), no lit light nearby (lightLevel), say 'idol' near it (heard), anyone holding it (holderSanity)."
+            - !type:WhisperToResult
+              message: "TIMERS: interval 60 s, proximity 30 s while someone is within 3 tiles, afterDelay once at 10 s, roundTime once at 60 s, whileState every 120 s."
+            - !type:WhisperToResult
+              message: "ROUND EVENTS: any game rule start / end, alert level change, shuttle call / recall, round end, gate spawned / cleared / breached, containment events, 'showcase-test' signal from ResultShowcaseIdol [18]. CONTROL THE IDOL (admin): spoke, emote, mindAdded, mindRemoved, selfAction."
+            - !type:WhisperToResult
+              message: "NOT FIREABLE on this item by design: mobState, stepTrigger, anchorChanged, powerChanged, stateChanged, offspringDied, entityInserted, entityRemoved, chain, selfMeleeHit, corruptionApplied, corruptionPulse."
         - !type:QlippothAction
           actionName: verb                # right-click -> Qlippoth -> Test initiation
           initiation: !type:VerbInitiation
             key: showcase
             text: "Test VerbInitiation"
-          results: [ !type:DebugAnnounceResult ]
+          results:
+            - !type:DebugAnnounceResult
+              note: "trigger: the 'Test VerbInitiation' verb was clicked"
         - !type:QlippothAction
           actionName: examined            # shift-click
           initiation: !type:OnExaminedInitiation
           results:
             - !type:DebugAnnounceResult
+              note: "trigger: shift-click examine"
             - !type:PopupResult
               message: "EXAMINED"
               recipient: Actor
@@ -1344,8 +1515,8 @@
 - type: entity
   id: QlippothExampleFilter
   parent: QlippothLargeBase
-  name: example - the sieve # works completely fine
-  description: A reference Qlippoth. It only notices certain people. DO NOT DELETE, see QlippothAction.cs.
+  name: TEST QlippothTargetFilter
+  description: Test entity for the filter block (QlippothTargetFilter). It only notices certain people. DO NOT DELETE, see QlippothAction.cs.
   components:
     - type: Qlippoth
       gatePhases: []   # admin-spawn only
@@ -1428,8 +1599,8 @@
 - type: entity
   id: QlippothExampleTargeting
   parent: QlippothLargeBase
-  name: example - the chooser
-  description: A reference Qlippoth. Every verb on it aims a different way. DO NOT DELETE, see QlippothAction.cs.
+  name: TEST QlippothTargeting
+  description: Test entity for the targeting block (QlippothTargeting). Every verb on it aims a different way. DO NOT DELETE, see QlippothAction.cs.
   components:
     - type: Qlippoth
       gatePhases: []   # admin-spawn only
@@ -1568,8 +1739,8 @@
 - type: entity
   id: QlippothExampleDestination
   parent: QlippothLargeBase
-  name: example - the doorway
-  description: A reference Qlippoth. It moves things to places. DO NOT DELETE, see QlippothAction.cs.
+  name: TEST QlippothDestination
+  description: Test entity for the destination block (QlippothDestination). It moves things to places. DO NOT DELETE, see QlippothAction.cs.
   components:
     - type: Qlippoth
       gatePhases: []   # admin-spawn only
