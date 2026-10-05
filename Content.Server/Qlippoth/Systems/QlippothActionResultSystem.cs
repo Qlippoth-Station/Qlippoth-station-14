@@ -22,6 +22,7 @@ using Content.Server.Station.Systems;
 using Content.Server.Weapons.Ranged.Systems;
 using Content.Shared.Atmos;
 using Content.Shared.Chat;
+using Content.Shared.Popups;
 using Content.Shared.Chemistry.Components;
 using Content.Shared.Chemistry.Components.SolutionManager;
 using Content.Shared.Damage.Systems;
@@ -52,6 +53,7 @@ using Robust.Shared.Map;
 using Robust.Shared.Map.Components;
 using Robust.Shared.Physics.Systems;
 using Robust.Shared.Player;
+using Robust.Shared.Utility;
 using Robust.Shared.Prototypes;
 using Robust.Shared.Random;                 // IRobustRandom
 using Robust.Shared.Timing;                 // IGameTiming
@@ -134,6 +136,12 @@ namespace Content.Server.Qlippoth
         /// </summary>
         public QlippothAction? CurrentAction;
 
+        /// <summary>
+        /// Set by StopResult. Ends the current action's result list (and any Group / Repeat / ForEach block inside it)
+        /// even when the action has continueOnFailure, which would otherwise ignore Stop's false return.
+        /// </summary>
+        public bool StopRequested;
+
         public override void Initialize()
         {
             base.Initialize();
@@ -163,24 +171,62 @@ namespace Content.Server.Qlippoth
         /// </summary>
         public void ExecuteResults(EntityUid uid, List<QlippothAction> actions, object? eventArgs = null)
         {
+            var trace = TryComp<QlippothActionsComponent>(uid, out var actionsComp) && actionsComp.TraceResults;
+
             foreach (var action in actions)
             {
                 CurrentAction = action;
+                StopRequested = false;
+                var traceParts = trace ? new List<string>() : null;
                 try
                 {
                     foreach (var result in action.Results)
                     {
                         if (!Exists(uid))
                             return;
-                        if (!result.Execute(uid, this, eventArgs) && !action.ContinueOnFailure)
+
+                        var ok = result.Execute(uid, this, eventArgs);
+                        traceParts?.Add($"{ResultLabel(result)} {(StopRequested ? "■" : ok ? "✓" : "✗")}");
+
+                        if (StopRequested)
+                            break;
+                        if (!ok && !action.ContinueOnFailure)
                             break;
                     }
                 }
                 finally
                 {
                     CurrentAction = null;
+                    StopRequested = false;
                 }
+
+                if (traceParts != null && Exists(uid))
+                    SendTrace(uid, eventArgs, $"[{action.ActionName}] {string.Join(" · ", traceParts)}");
             }
+        }
+
+        /// <summary>"DamageResult" -> "Damage" for the trace line.</summary>
+        private static string ResultLabel(QlippothResult result)
+        {
+            var name = result.GetType().Name;
+            return name.EndsWith("Result") ? name[..^"Result".Length] : name;
+        }
+
+        /// <summary>
+        /// One traceResults line: to the actor's chat when the initiation knows one, otherwise a popup at the Qlippoth. Always logged.
+        /// </summary>
+        private void SendTrace(EntityUid uid, object? eventArgs, string text)
+        {
+            Sawmill.Info($"[{EntityName(uid)} {uid}] trace {text}");
+
+            if (ResolveActor(uid, eventArgs) is { } actor && TryComp<ActorComponent>(actor, out var session))
+            {
+                var wrapped = $"[color=#C040FF]{FormattedMessage.EscapeText(text)}[/color]";
+                _chatManager.ChatMessageToOne(ChatChannel.Local, text, wrapped, EntityUid.Invalid, false, session.PlayerSession.Channel, Color.FromHex("#C040FF"));
+                return;
+            }
+
+            Popup.PopupEntity(text, uid, PopupType.Qlippoth);
         }
 
         #region target / actor / destination resolution

@@ -20,6 +20,13 @@ namespace Content.Server.Qlippoth
         [DataField]
         public Dictionary<string, string> State { get; set; } = new();
 
+        /// <summary>
+        /// Debug aid: after every action runs, send the actor (or pop up at the Qlippoth when there is none) one line
+        /// listing each result and whether it returned true. Also written to the "qlippoth" log. Used by the showcase idols.
+        /// </summary>
+        [DataField]
+        public bool TraceResults { get; set; }
+
         /// <summary>Runtime: the mob currently holding this Qlippoth in hand, if any.</summary>
         public EntityUid? Holder;
 

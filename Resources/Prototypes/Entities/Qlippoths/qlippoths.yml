@@ -292,10 +292,15 @@
 #     The verb text is "[NN] Group: ResultA, ResultB, ..." and lists the results it runs, in order.
 #   - Every action has continueOnFailure: true, so one failing result does not hide the ones after it.
 #     Each verb starts with DebugTraceResult so you can see it fired.
+#   - traceResults: true on the component: after every verb you get ONE purple chat line listing each result
+#     with ✓ (returned true), ✗ (returned false: nothing to act on, missing component, chance missed...) or ■ (Stop).
+#     That line is the ground truth for "did it run"; the comments below say what you should SEE on top of it.
 #   - "target" of a verb = the player who clicked. Offspring = the mobs the idol spawned in [15].
 #   - Verbs marked [!] are disruptive (explosions, round events, mind swap). Use them on a test server.
-#   - [19] Undo puts back what the other verbs changed (components, name, anchor, doors, pinpointer, polymorph).
-#   - Some results only make sense under other initiations and are EXPECTED to fail here (listed in [13]).
+#   - [19] Undo puts back what the other verbs changed (components, name, anchor, doors, pinpointer, polymorph, fire).
+#   - [13] runs the four damage-REACTION results. They edit a damage event that only exists inside
+#     OnHolderDamaged / OnMeleeHit / OnAttacked, so from a verb they return ✗ by design. The live demo for one of
+#     them is the "thorns" action right after [21]: hit the idol with anything and watch the popup.
 # ============================================================================================
 - type: entity
   id: ResultShowcaseIdol
@@ -343,6 +348,7 @@
             Medium: { state: pinonmedium }
             Far: { state: pinonfar }
     - type: QlippothActions
+      traceResults: true
       actions:
         # ---------------- [01] Text / chat ----------------
         - !type:QlippothAction
@@ -388,13 +394,14 @@
               soundPath: /Audio/Qlippoth/qlippoth.ogg
               volume: 3
             - !type:TestSoundResult
-            - !type:SetLightResult
-              color: "#00FFAA"
-              radius: 4
-            - !type:ToggleGlowResult
+            - !type:ToggleGlowResult       # expect: idol lights up orange (forced on, so the first click never turns it off)
+              enabled: true
               color: "#FF4500"
               radius: 5
-            - !type:PoweredLightResult
+            - !type:SetLightResult         # expect: ...then the glow turns teal and a bit smaller. [19] puts the purple back.
+              color: "#00FFAA"
+              radius: 4
+            - !type:PoweredLightResult     # expect: wall lights within 6 tiles flip; ✗ in the trace if the room has none
               mode: Toggle
 
         # ---------------- [03] Effects on you ----------------
@@ -405,30 +412,34 @@
             key: test03
             text: "[03] Effects on you: Damage, Heal, StaminaDamage, Jitter, Flash, SpeedModifier, StatusEffect, DropHeldItems, Knockdown, Stun"
             priority: 98
+          # Order matters: Heal runs BEFORE Damage so the 10 blunt stays on your health bar,
+          # and Flash / blindness come LAST so they do not hide the rest. Expect, in this order:
+          # health topped up, then -10 blunt, stamina bar drops, held items fall, you drop to the floor (2 s),
+          # stunned (2 s), slowed walk for 6 s, shaky sprite 4 s, white flash 1 s, black screen 2 s.
           results:
             - !type:DebugTraceResult
+            - !type:HealResult
+              healAll: true
             - !type:DamageResult
               damage:
                 types:
-                  Blunt: 5
-            - !type:HealResult
-              healAll: true
+                  Blunt: 10
             - !type:StaminaDamageResult
-              amount: 20
-            - !type:JitterResult
+              amount: 30
+            - !type:DropHeldItemsResult
+            - !type:KnockdownResult
               duration: 2
-            - !type:FlashResult
+            - !type:StunResult
               duration: 2
             - !type:SpeedModifierResult
+              duration: 6
+            - !type:JitterResult
               duration: 4
+            - !type:FlashResult
+              duration: 1
             - !type:StatusEffectResult
               effect: StatusEffectBlindness
               duration: 2
-            - !type:DropHeldItemsResult
-            - !type:KnockdownResult
-              duration: 1
-            - !type:StunResult
-              duration: 1
 
         # ---------------- [04] Hazards on you ----------------
         - !type:QlippothAction
@@ -436,19 +447,20 @@
           continueOnFailure: true
           initiation: !type:VerbInitiation
             key: test04
-            text: "[04] Hazards on you: Ignite, Extinguish, Electrocute, InjectReagent"
+            text: "[04] Hazards on you: Ignite(3 stacks), Electrocute, InjectReagent(SpaceDrugs). Extinguish is in [19] Undo"
             priority: 97
+          # Expect: you catch fire and STAY on fire (roll on the floor or use [19] Undo to put it out), a shock popup
+          # + short stun, and 15u of space drugs in your blood (rainbow screen effect for a while).
           results:
             - !type:DebugTraceResult
             - !type:IgniteResult
-              fireStacks: 1
-            - !type:ExtinguishResult
+              fireStacks: 3
             - !type:ElectrocuteResult
               damage: 5
               duration: 1
             - !type:InjectReagentResult
-              reagent: Water
-              amount: 5
+              reagent: SpaceDrugs
+              amount: 15
 
         # ---------------- [05] Sanity / corruption ----------------
         - !type:QlippothAction
@@ -547,10 +559,11 @@
               delay: 5
             - !type:CancelDelayResult
               key: noListener
-            - !type:StopResult
-            - !type:PopupResult             # must NOT show: StopResult ends the list
+            - !type:StopResult              # trace shows "Stop ■" as the LAST entry; nothing after it runs
+            - !type:PopupResult             # must NOT show: StopResult ends the list even with continueOnFailure
               message: "BUG: StopResult did not stop."
               recipient: Everyone
+              type: Qlippoth
 
         # ---------------- [08] Spawn / produce ----------------
         - !type:QlippothAction
@@ -675,15 +688,19 @@
             - !type:PointAtNearestResult
               targetComponents: [QGate, Door]
 
-        # ---------------- [13] Holder / weapon (EXPECTED TO FAIL here) ----------------
-        # These edit the damage event of OnHolderDamaged / OnMeleeHit / OnAttacked. A verb has no such event,
-        # so they return false. The verb only proves they load and run without crashing.
+        # ---------------- [13] Damage reactions (EXPECT ✗ from the verb) ----------------
+        # These four do not DO damage, they EDIT a damage event that is in flight:
+        #   NegateDamage / ScaleIncomingDamage  -> the hit the HOLDER is about to take   (OnHolderDamagedInitiation, hand-held Qlippoths)
+        #   BonusMeleeDamage                     -> the hit made WITH the Qlippoth        (OnMeleeHitInitiation / OnSelfMeleeHitInitiation)
+        #   BonusAttackedDamage                  -> the hit that just landed ON the Qlippoth (OnAttackedInitiation)
+        # A verb carries no damage event, so here they return ✗. The verb only proves they load and run.
+        # Live demo: the "thorns" action at the end of this list (OnAttacked + BonusAttackedDamage). Hit the idol.
         - !type:QlippothAction
           actionName: test13Holder
           continueOnFailure: true
           initiation: !type:VerbInitiation
             key: test13
-            text: "[13] Holder/Weapon (fail expected): NegateDamage, ScaleIncomingDamage, BonusMeleeDamage, BonusAttackedDamage"
+            text: "[13] Damage reactions (✗ expected here, hit the idol for the live one): NegateDamage, ScaleIncomingDamage, BonusMeleeDamage, BonusAttackedDamage"
             priority: 88
           results:
             - !type:DebugTraceResult
@@ -723,6 +740,9 @@
             key: test15
             text: "[15] Reproduce: SpawnMob, SpawnQlippoth, SpawnCopy, Enthrall(offspring), OfferGhostRole(offspring)"
             priority: 86
+          # maxAlive counts EVERY tracked offspring of this idol, not just the prototype of that result. Caps must
+          # therefore grow down the list, or the mouse alone blocks the two spawns after it.
+          # Expect: a mouse, a test Qlippoth and a second idol next to you; both get a ghost-role offer.
           results:
             - !type:DebugTraceResult
             - !type:SpawnMobResult
@@ -731,9 +751,9 @@
               maxAlive: 3
             - !type:SpawnQlippothResult
               spawnQlippoth: MobQlippothTest
-              maxAlive: 1
+              maxAlive: 5
             - !type:SpawnCopyResult
-              maxAlive: 1
+              maxAlive: 6
             - !type:EnthrallResult
               targeting: { mode: Offspring }
             - !type:OfferGhostRoleResult
@@ -806,10 +826,11 @@
           continueOnFailure: true
           initiation: !type:VerbInitiation
             key: test19
-            text: "[19] Undo: RemoveComponents, Rename(back), SetAnchored(off), Pull(release), SetDoorBolts(up), HoldDoors(release), Pinpointer(off), RevertPolymorph, SetLight(back)"
+            text: "[19] Undo: Extinguish(you), RemoveComponents, Rename(back), SetAnchored(off), Pull(release), SetDoorBolts(up), HoldDoors(release), Pinpointer(off), RevertPolymorph, SetLight(back)"
             priority: 82
           results:
             - !type:DebugTraceResult
+            - !type:ExtinguishResult       # undoes [04]
             - !type:RemoveComponentsResult
               components: [OwOAccent]
             - !type:RenameResult
@@ -890,6 +911,20 @@
             - !type:DebugTraceResult
             - !type:TransferMindResult
               mode: Swap
+
+        # ---------------- live demo for [13]: hit the idol ----------------
+        - !type:QlippothAction
+          actionName: thorns                # melee the idol with anything
+          initiation: !type:OnAttackedInitiation
+          results:
+            - !type:BonusAttackedDamageResult   # the hit that just landed does +5 Blunt extra
+              damage:
+                types:
+                  Blunt: 5
+            - !type:PopupResult
+              message: "BonusAttackedDamage: your hit on {$self} just did +5 Blunt extra."
+              recipient: Actor
+              type: Qlippoth
 
 
 # SHOWCASE INSTANCE - INITIATION TESTER #

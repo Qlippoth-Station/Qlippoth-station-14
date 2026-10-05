@@ -2972,7 +2972,8 @@ namespace Content.Server.Qlippoth
         {
             foreach (var result in Results)
             {
-                if (!result.Execute(uid, resultSystem, eventArgs) && !ContinueOnFailure)
+                var ok = result.Execute(uid, resultSystem, eventArgs);
+                if (resultSystem.StopRequested || (!ok && !ContinueOnFailure))
                     break;
             }
             return true;
@@ -2997,10 +2998,12 @@ namespace Content.Server.Qlippoth
                 var inner = new QlippothTargetEventArgs(target);
                 foreach (var result in Results)
                 {
-                    if (!result.Execute(uid, resultSystem, inner))
+                    if (!result.Execute(uid, resultSystem, inner) || resultSystem.StopRequested)
                         break;
                 }
                 any = true;
+                if (resultSystem.StopRequested)
+                    break;
             }
             return any;
         }
@@ -3022,9 +3025,11 @@ namespace Content.Server.Qlippoth
             {
                 foreach (var result in Results)
                 {
-                    if (!result.Execute(uid, resultSystem, eventArgs))
+                    if (!result.Execute(uid, resultSystem, eventArgs) || resultSystem.StopRequested)
                         break;
                 }
+                if (resultSystem.StopRequested)
+                    break;
             }
             return true;
         }
@@ -3105,7 +3110,12 @@ namespace Content.Server.Qlippoth
     [DataDefinition]
     public sealed partial class StopResult : FlowResult
     {
-        public override bool Execute(EntityUid uid, QlippothActionResultSystem resultSystem, object? eventArgs = null) => false;
+        public override bool Execute(EntityUid uid, QlippothActionResultSystem resultSystem, object? eventArgs = null)
+        {
+            // Returning false alone is not enough: an action with continueOnFailure would just carry on.
+            resultSystem.StopRequested = true;
+            return false;
+        }
     }
 
     /// <summary>Write a line to the server log (sawmill "qlippoth"). For debugging action chains.</summary>

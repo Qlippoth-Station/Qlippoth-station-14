@@ -16,7 +16,9 @@ Every Qlippoth carries a `QlippothActions` component with a list of actions. One
     - !type:NegateDamageResult
 ```
 
-Results run in order. A result returns `false` when it could not do its job (no valid target, welded door, chance missed), which stops the remaining results of that action. Flow results use this as a gate.
+Results run in order. A result returns `false` when it could not do its job (no valid target, welded door, chance missed), which stops the remaining results of that action unless the action has `continueOnFailure: true`. Flow results use this as a gate. `StopResult` is the hard stop: it ends the list (and any `GroupResult` / `RepeatResult` / `ForEachTargetResult` block it sits in) even with `continueOnFailure`.
+
+Debugging: `traceResults: true` on the `QlippothActions` component sends the actor one chat line per fired action, e.g. `[test04Hazards] DebugTrace ✓ · Ignite ✓ · Electrocute ✓ · InjectReagent ✗`, and logs the same line. ✗ means the result found nothing to act on (missing component, no target in range, chance missed), ■ marks a `StopResult`.
 
 ## Shared building blocks
 
@@ -140,7 +142,7 @@ Where something goes or spawns. Modes: `Self`, `Target`, `Actor`, `RandomNearSel
 `SpawnItemResult` (destination, scatter, anchor), `SpawnEffectResult`, `SpawnOnTilesInRangeResult`, `PlaySoundResult`, `ReleaseGasResult` (single gas or mixture), `SpeakResult` (say / whisper / emote), `WhisperToResult` (private chat line), `ShootProjectileResult`, `ThrowSpawnedResult`.
 
 ### Reproduce (new mobs and Qlippoths)
-`SpawnMobResult`, `SpawnQlippothResult`, `SpawnCopyResult` (all with ghost role text, offspring tracking, `maxAlive`), `OfferGhostRoleResult`, `CullOffspringResult`.
+`SpawnMobResult`, `SpawnQlippothResult`, `SpawnCopyResult` (all with ghost role text, offspring tracking, `maxAlive`), `OfferGhostRoleResult`, `CullOffspringResult`. `maxAlive` counts every tracked offspring of the Qlippoth, whatever result spawned it.
 
 ### External movement
 `TeleportResult` (targeting + destination), `SwapPlacesResult`, `ThrowResult` (away / toward / random / fixed), `PushResult`, `SetAnchoredResult`, `FaceResult`.
