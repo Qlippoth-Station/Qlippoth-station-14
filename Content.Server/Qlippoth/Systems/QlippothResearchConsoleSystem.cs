@@ -2,7 +2,6 @@ using Content.Shared.Qlippoth;
 using Content.Shared.Qlippoth.Components;
 using Content.Shared.UserInterface;
 using Robust.Server.GameObjects;
-using Robust.Shared.Timing;
 
 namespace Content.Server.Qlippoth.Systems;
 
@@ -11,10 +10,9 @@ namespace Content.Server.Qlippoth.Systems;
 /// Handles remote scanning, data extraction, and BUI state updates.
 /// Xenoarchaeology-style remote analysis without entering the containment cell.
 /// </summary>
-public sealed class QlippothResearchConsoleSystem : EntitySystem
+public sealed partial class QlippothResearchConsoleSystem : EntitySystem
 {
-    [Dependency] private readonly IGameTiming _timing = default!;
-    [Dependency] private readonly UserInterfaceSystem _ui = default!;
+    [Dependency] private UserInterfaceSystem _ui = default!;
 
     public override void Initialize()
     {

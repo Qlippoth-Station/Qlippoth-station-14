@@ -108,7 +108,7 @@ namespace Content.Server.Qlippoth
         [Dependency] public GameTicker GameTicker = default!;
         [Dependency] public RoundEndSystem RoundEnd = default!;
         [Dependency] public PuddleSystem Puddle = default!;
-        [Dependency] public MetaDataSystem MetaData = default!;
+        [Dependency] public MetaDataSystem Metadata = default!;
         [Dependency] private SmokeSystem _smoke = default!;
         [Dependency] private SolutionContainerSystem _solutions = default!;
         [Dependency] private GunSystem _gun = default!;
@@ -348,7 +348,7 @@ namespace Content.Server.Qlippoth
 
             foreach (var (otherUid, _) in QlippothEntityManager.GetAllComponents(registration.Type))
             {
-                if (otherUid == uid || !TryComp<TransformComponent>(otherUid, out var otherXform) || otherXform.MapID != xform.MapID)
+                if (otherUid == uid || !TryComp(otherUid, out TransformComponent? otherXform) || otherXform.MapID != xform.MapID)
                     continue;
 
                 var distance = (QlippothTransform.GetWorldPosition(otherXform) - origin).LengthSquared();
@@ -364,12 +364,12 @@ namespace Content.Server.Qlippoth
 
         public string EntityName(EntityUid uid)
         {
-            return TryComp<MetaDataComponent>(uid, out var meta) ? meta.EntityName : string.Empty;
+            return TryComp(uid, out MetaDataComponent? meta) ? meta.EntityName : string.Empty;
         }
 
         public string? PrototypeIdOf(EntityUid uid)
         {
-            return TryComp<MetaDataComponent>(uid, out var meta) ? meta.EntityPrototype?.ID : null;
+            return TryComp(uid, out MetaDataComponent? meta) ? meta.EntityPrototype?.ID : null;
         }
 
         public bool HasPlayer(EntityUid uid)
@@ -700,7 +700,7 @@ namespace Content.Server.Qlippoth
             if (anchored)
                 QlippothTransform.AnchorEntity(replacement.Value);
             if (keepName)
-                MetaData.SetEntityName(replacement.Value, name);
+                Metadata.SetEntityName(replacement.Value, name);
 
             if (copyState && TryComp<QlippothActionsComponent>(target, out var oldActions) && TryComp<QlippothActionsComponent>(replacement.Value, out var newActions))
             {

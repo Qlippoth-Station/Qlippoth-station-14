@@ -30,7 +30,7 @@ public sealed partial class ContainmentDimensionSystem : EntitySystem
     [Dependency] private IPlayerManager _players = default!;
     [Dependency] private SharedHandsSystem _hands = default!;
     [Dependency] private QlippothActionInitiationSystem _initiation = default!;
-    [Dependency] private readonly ChatSystem _chat = default!;
+    [Dependency] private ChatSystem _chat = default!;
     [Dependency] private DamageableSystem _damageable = default!;
 
     public MapId ContainmentMapId { get; private set; } = MapId.Nullspace;
@@ -55,7 +55,7 @@ public sealed partial class ContainmentDimensionSystem : EntitySystem
         while (chambers.MoveNext(out _, out var chamber, out var chamberTransform))
         {
             if (!chamber.IsOccupied || chamber.ContainedQlippoth is not { } qlippoth ||
-                !TryComp<TransformComponent>(qlippoth, out var qlippothTransform) ||
+                !TryComp(qlippoth, out TransformComponent? qlippothTransform) ||
                 qlippothTransform.MapID != chamberTransform.MapID)
                 continue;
 

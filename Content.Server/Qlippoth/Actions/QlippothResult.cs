@@ -1389,9 +1389,9 @@ namespace Content.Server.Qlippoth
             foreach (var target in resultSystem.ResolveTargets(uid, eventArgs, Targeting))
             {
                 if (Name != null)
-                    resultSystem.MetaData.SetEntityName(target, Loc.GetString(Name));
+                    resultSystem.Metadata.SetEntityName(target, Loc.GetString(Name));
                 if (Description != null)
-                    resultSystem.MetaData.SetEntityDescription(target, Loc.GetString(Description));
+                    resultSystem.Metadata.SetEntityDescription(target, Loc.GetString(Description));
                 any = true;
             }
             return any;
@@ -1439,7 +1439,7 @@ namespace Content.Server.Qlippoth
             var any = false;
             foreach (var target in resultSystem.ResolveTargets(uid, eventArgs, Targeting))
             {
-                if (!resultSystem.QlippothEntityManager.HasComponent<SharedPointLightComponent>(target))
+                if (!resultSystem.PointLight.TryGetLight(target, out _))
                     continue;
                 if (Enabled != null)
                     resultSystem.PointLight.SetEnabled(target, Enabled.Value);

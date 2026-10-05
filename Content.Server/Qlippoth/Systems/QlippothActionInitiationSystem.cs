@@ -65,6 +65,7 @@ namespace Content.Server.Qlippoth
         [Dependency] private SharedContainerSystem _container = default!;
         [Dependency] private GameTicker _gameTicker = default!;
         [Dependency] private RoundEndSystem _roundEnd = default!;
+        [Dependency] private SharedPointLightSystem _pointLight = default!;
 
         public static readonly VerbCategory QlippothVerbCategory = new("verb-categories-qlippoth", null);
 
@@ -461,7 +462,7 @@ namespace Content.Server.Qlippoth
                     continue;
                 if (TryComp<PoweredLightComponent>(other, out var powered) && powered.On && powered.CurrentLit)
                     count++;
-                else if (!HasComp<PoweredLightComponent>(other) && TryComp<SharedPointLightComponent>(other, out var light) && light.Enabled)
+                else if (!HasComp<PoweredLightComponent>(other) && _pointLight.TryGetLight(other, out var light) && light.Enabled)
                     count++;
             }
             return count;

@@ -10,7 +10,7 @@ namespace Content.Server.Qlippoth.Systems;
 /// keeps the timers running, drains sanity, spreads the corruption and raises
 /// OnCorruptionAppliedInitiation / OnCorruptionPulseInitiation on the source Qlippoth.
 /// </summary>
-public sealed class CorruptionSystem : EntitySystem
+public sealed partial class CorruptionSystem : EntitySystem
 {
     [Dependency] private IRobustRandom _random = default!;
     [Dependency] private SanitySystem _sanity = default!;
