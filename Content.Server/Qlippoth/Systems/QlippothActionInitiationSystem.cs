@@ -39,6 +39,7 @@ using Robust.Shared.Player;
 using Robust.Shared.GameObjects;
 using Robust.Shared.Physics.Events;
 using Robust.Shared.Random;
+using Robust.Shared.Utility;
 using Robust.Shared.Timing;
 
 namespace Content.Server.Qlippoth
@@ -771,9 +772,13 @@ namespace Content.Server.Qlippoth
                     continue;
 
                 var verbKey = initiation.Key;
+                var text = Loc.GetString(initiation.Text);
                 var verb = new TVerb
                 {
-                    Text = Loc.GetString(initiation.Text),
+                    Text = text,
+                    // The client renders the hover tooltip from Message (or Text) as rich-text markup,
+                    // so raw labels like "[01] ..." have to be escaped or the client throws on hover.
+                    Message = FormattedMessage.EscapeText(text),
                     Category = QlippothVerbCategory,
                     Priority = initiation.Priority,
                     Act = () =>
@@ -804,9 +809,11 @@ namespace Content.Server.Qlippoth
             foreach (var action in component.Actions)
             {
                 var target = action;
+                var text = $"{target.ActionName} ({target.Initiation.GetType().Name})";
                 args.Verbs.Add(new Verb
                 {
-                    Text = $"{target.ActionName} ({target.Initiation.GetType().Name})",
+                    Text = text,
+                    Message = FormattedMessage.EscapeText(text),
                     Category = QlippothAdminVerbCategory,
                     Impact = LogImpact.Medium,
                     Act = () => ForceAction(uid, target, user),
