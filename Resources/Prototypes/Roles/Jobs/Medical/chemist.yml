@@ -10,6 +10,8 @@
   startingGear: ChemistGear
   icon: "JobIconChemist"
   supervisors: job-supervisors-cmo
+  guides:
+  - QlippothOperations
   access:
   - Medical
   - Chemistry

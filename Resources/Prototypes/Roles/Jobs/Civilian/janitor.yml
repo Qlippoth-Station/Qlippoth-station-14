@@ -6,6 +6,8 @@
   startingGear: JanitorGear
   icon: "JobIconJanitor"
   supervisors: job-supervisors-hop
+  guides:
+  - QlippothOperations
   access:
   - Service
   - Janitor

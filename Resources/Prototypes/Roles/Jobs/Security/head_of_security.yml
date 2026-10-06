@@ -20,6 +20,8 @@
   startingGear: HoSGear
   icon: "JobIconHeadOfSecurity"
   supervisors: job-supervisors-captain
+  guides:
+  - QlippothOperations
   access:
   - HeadOfSecurity
   - Command

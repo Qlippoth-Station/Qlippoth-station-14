@@ -60,6 +60,7 @@ guide-entry-solarpanels = Solar Panels
 guide-entry-teg = Thermo-electric Generator (TEG)
 guide-entry-rtg = RTG
 guide-entry-jobs = Jobs
+guide-entry-qlippoth-operations = Qlippoth Operations
 guide-entry-cargo = Cargo
 guide-entry-cargo-bounties = Cargo Bounties
 guide-entry-salvage = Salvage

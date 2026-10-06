@@ -17,6 +17,8 @@
   startingGear: ChiefEngineerGear
   icon: "JobIconChiefEngineer"
   supervisors: job-supervisors-captain
+  guides:
+  - QlippothOperations
   access:
   - Maintenance
   - Engineering

@@ -9,6 +9,8 @@
   startingGear: MimeGear
   icon: "JobIconMime"
   supervisors: job-supervisors-hop
+  guides:
+  - QlippothOperations
   access:
   - Theatre
   - Maintenance

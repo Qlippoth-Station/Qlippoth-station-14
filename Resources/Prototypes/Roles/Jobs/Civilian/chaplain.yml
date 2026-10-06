@@ -6,6 +6,8 @@
   startingGear: ChaplainGear
   icon: "JobIconChaplain"
   supervisors: job-supervisors-hop
+  guides:
+  - QlippothOperations
   access:
   - Chapel
   - Maintenance
@@ -34,4 +36,3 @@
     neck: ClothingNeckStoleChaplain
     outerClothing: ClothingOuterPlagueSuit
     gloves: ClothingHandsGlovesColorBlack
-

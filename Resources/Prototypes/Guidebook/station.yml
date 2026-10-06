@@ -5,6 +5,7 @@
   text: "/ServerInfo/Guidebook/SpaceStation14.xml"
   children:
   - Jobs
+  - QlippothOperations
   - Survival
   - Antagonists
   - Glossary
@@ -18,3 +19,8 @@
   id: Survival
   name: guide-entry-survival
   text: "/ServerInfo/Guidebook/Survival.xml"
+
+- type: guideEntry
+  id: QlippothOperations
+  name: guide-entry-qlippoth-operations
+  text: "/ServerInfo/Guidebook/QlippothOperations.xml"

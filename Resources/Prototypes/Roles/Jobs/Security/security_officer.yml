@@ -10,6 +10,8 @@
   startingGear: SecurityOfficerGear
   icon: "JobIconSecurityOfficer"
   supervisors: job-supervisors-hos
+  guides:
+  - QlippothOperations
   access:
   - Security
   - Brig

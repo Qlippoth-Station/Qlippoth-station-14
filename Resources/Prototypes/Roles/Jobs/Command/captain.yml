@@ -24,6 +24,8 @@
   icon: "JobIconCaptain"
   joinNotifyCrew: true
   supervisors: job-supervisors-centcom
+  guides:
+  - QlippothOperations
   accessGroups:
   - AllAccess
   special:

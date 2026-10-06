@@ -26,6 +26,30 @@
     - map: ["computerLayerScreen"]
       state: generic
 
+# Shared live status for Command and departmental handoffs at both sites.
+- type: entity
+  id: ComputerQlippothOperationsBoard
+  parent: BaseComputer
+  name: Cross-Site Operations Board
+  description: Displays active Q-Gates and current Containment Dimension chamber status.
+  components:
+  - type: QlippothContainmentConsole
+    title: Cross-Site Operations Board
+    status: Operations board ready.
+  - type: ActivatableUI
+    key: enum.QGateRadarUiKey.Key
+  - type: UserInterface
+    interfaces:
+      enum.QGateRadarUiKey.Key:
+        type: QlippothContainmentConsoleBoundUserInterface
+  - type: Sprite
+    sprite: Structures/Machines/computers.rsi
+    layers:
+    - map: ["computerLayerBody"]
+      state: computer
+    - map: ["computerLayerScreen"]
+      state: generic
+
 # Qlippoth Research Console (Science)
 - type: entity
   id: ComputerQlippothResearch

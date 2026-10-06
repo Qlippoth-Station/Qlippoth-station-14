@@ -6,6 +6,8 @@
   startingGear: BotanistGear
   icon: "JobIconBotanist"
   supervisors: job-supervisors-hop
+  guides:
+  - QlippothOperations
   access:
   - Service
   - Maintenance

@@ -310,6 +310,18 @@
       - state: captain
 
 - type: entity
+  id: SpawnPointDimensionCommander
+  parent: SpawnPointJobBase
+  name: dimension commander
+  components:
+  - type: SpawnPoint
+    job_id: DimensionCommander
+  - type: Sprite
+    layers:
+    - state: green
+    - state: captain
+
+- type: entity
   id: SpawnPointHeadOfPersonnel
   parent: SpawnPointJobBase
   name: headofpersonnel

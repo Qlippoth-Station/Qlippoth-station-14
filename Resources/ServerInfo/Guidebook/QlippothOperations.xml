@@ -1,0 +1,35 @@
+<Document>
+# Qlippoth Operations
+
+The Station and the Containment Dimension are separate facilities connected by a shared portal. Departments keep one roster across both sites. The Station Captain leads Station operations; the Dimension Site Commander leads routine work at the Dimension. Department heads retain their department responsibilities at either site.
+
+## Q-Gate Response
+
+Treat each Q-Gate as a coordinated incident, not an invitation to enter alone. Command should review available gate information and agree on a response team. Science interprets the event and its objectives; Security protects the response team and controls the perimeter; Engineering supports equipment and safe access.
+
+Once the team enters a rift, complete its stated objectives and use that rift's return route to evacuate. Follow the live gate status and evacuation warnings. Do not assume another gate's return portal is connected to your rift.
+
+## Containment Dimension
+
+The Dimension Site Commander coordinates routine operations at the Dimension and communicates with the Station Captain when a response affects both sites. Staff assigned to cross-site work should use the designated Station portal and confirm their return route before leaving their team.
+
+Command, Science, Engineering, Medical, Security, Cargo, Service, and Silicon support Qlippoth operations as part of their regular duties at either site. Department heads coordinate priorities across both facilities; the local site commander coordinates work at their facility. Service supports crew welfare and routine needs, while Silicon provides monitoring and telemetry under its laws. Coordinate unusual access, escorts, supplies, equipment, and incident response through the responsible department head and the local site commander.
+
+The Cross-Site Operations Board refreshes active Q-Gates and Containment Dimension chamber counts once per second while open. A breach is listed by chamber and sector; use it to coordinate response with the local site commander. The board is a read-only status display: it does not assign responders, register transfers, or replace direct radio handoffs and department procedures.
+
+## Chamber Construction and Breaches
+
+Use the Containment Blueprint Console to prepare a chamber blueprint. Engineering fabricates and places the construction kit only in a valid Dimension location; do not discard or attempt to place it at the Station. Confirm that the room is complete before assigning it for containment.
+
+Monitor occupied chambers and respond promptly to damage or alarms. During a breach, move bystanders away, establish a Security perimeter, and request Engineering, Science, and Command support. Do not enter a compromised chamber without coordinating the response. Reassess and restore the chamber before returning it to service.
+
+## Research and Transport
+
+Use the Research Console linked to a chamber to conduct available scans and review the displayed results. Follow the Research Director's authorization and keep specimen handling coordinated with Security and Engineering.
+
+Treat transport capsules as secured cargo. Verify the capsule and intended chamber before delivery; use the marked destination and do not open a capsule outside an appropriate containment area. If a delivery fails or its destination is unavailable, secure the capsule and contact Cargo and the Dimension team rather than abandoning it.
+
+## Cross-Site Handoffs
+
+For each transfer or incident, state who is handing off responsibility, who is receiving it, what is being moved, and where it is going. A transfer is not complete until the receiving team confirms custody. Keep Command informed when staffing, safety, or facility operations at either site are affected.
+</Document>

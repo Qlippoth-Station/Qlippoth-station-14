@@ -35,6 +35,14 @@
 
 - type: jobIcon
   parent: JobIcon
+  id: JobIconDimensionCommander
+  icon:
+    sprite: *icon-rsi
+    state: Captain
+  jobName: job-name-dimension-commander
+
+- type: jobIcon
+  parent: JobIcon
   id: JobIconChiefEngineer
   icon:
     sprite: *icon-rsi

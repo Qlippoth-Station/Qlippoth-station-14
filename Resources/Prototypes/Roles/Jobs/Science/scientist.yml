@@ -10,6 +10,8 @@
   startingGear: ScientistGear
   icon: "JobIconScientist"
   supervisors: job-supervisors-rd
+  guides:
+  - QlippothOperations
   access:
   - Research
   - Maintenance

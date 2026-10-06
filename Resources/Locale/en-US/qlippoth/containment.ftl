@@ -9,6 +9,10 @@ research-console-extract = Extract Research Data
 
 containment-portal-name = Containment Dimension Portal
 containment-portal-desc = A stable dimensional portal leading to the station's Qlippoth Containment Dimension.
+containment-dimension-commander-transfer-failed = Dimension Site Commander transfer failed. Use the Containment Dimension portal or contact Command.
+containment-operations-board-gates = Active Q-Gates:
+containment-operations-board-chambers = Containment chambers: {$total} total | {$occupied} occupied | {$breached} breached | {$unfinished} unfinished.
+containment-operations-board-breach = ALERT: {$chamber} ({$sector}) is breached. Coordinate a response with the local site commander.
 
 containment-chamber-name = Containment Chamber
 containment-chamber-desc = A reinforced containment cell designed to house anomalous Qlippoth entities.

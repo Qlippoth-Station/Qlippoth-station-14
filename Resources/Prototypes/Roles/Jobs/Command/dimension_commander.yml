@@ -1,0 +1,32 @@
+- type: job
+  id: DimensionCommander
+  name: job-name-dimension-commander
+  description: job-description-dimension-commander
+  playTimeTracker: JobDimensionCommander
+  weight: 20
+  startingGear: DimensionCommanderGear
+  icon: JobIconDimensionCommander
+  joinNotifyCrew: true
+  supervisors: job-supervisors-site-command
+  access:
+  - Command
+  guides:
+  - Command
+  special:
+  - !type:AddImplantSpecial
+    implants: [ MindShieldImplant ]
+  - !type:AddComponentSpecial
+    components:
+    - type: CommandStaff
+
+- type: startingGear
+  id: DimensionCommanderGear
+  equipment:
+    shoes: ClothingShoesBootsLaceup
+    eyes: ClothingEyesGlassesCommand
+    gloves: ClothingHandsGlovesCaptain
+    id: CaptainPDA
+    ears: ClothingHeadsetAltCommand
+  storage:
+    back:
+    - Flash

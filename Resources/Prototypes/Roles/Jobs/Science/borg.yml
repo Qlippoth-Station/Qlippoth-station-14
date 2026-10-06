@@ -12,6 +12,8 @@
   weight: 10
   icon: JobIconStationAi
   supervisors: job-supervisors-rd
+  guides:
+  - QlippothOperations
   jobEntity: StationAiBrain
   jobPreviewEntity: PlayerStationAiPreview
   applyTraits: false
@@ -26,5 +28,7 @@
       time: 10h
   icon: JobIconBorg
   supervisors: job-supervisors-rd
+  guides:
+  - QlippothOperations
   jobEntity: PlayerBorgBattery
   applyTraits: false

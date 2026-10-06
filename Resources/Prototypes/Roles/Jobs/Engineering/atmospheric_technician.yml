@@ -10,6 +10,8 @@
   startingGear: AtmosphericTechnicianGear
   icon: "JobIconAtmosphericTechnician"
   supervisors: job-supervisors-ce
+  guides:
+  - QlippothOperations
   access:
   - Maintenance
   - Engineering

@@ -11,11 +11,14 @@ namespace Content.Server.Qlippoth.Systems;
 /// </summary>
 public sealed partial class QlippothContainmentConsoleSystem : EntitySystem
 {
+    private static readonly TimeSpan OperationsBoardRefreshInterval = TimeSpan.FromSeconds(1);
+
     [Dependency] private readonly UserInterfaceSystem _ui = default!;
     [Dependency] private readonly QlippothMarketSystem _market = default!;
     [Dependency] private readonly ContainmentDimensionSystem _containment = default!;
     [Dependency] private readonly QGateSystem _qgates = default!;
     [Dependency] private readonly IGameTiming _timing = default!;
+    private TimeSpan _nextOperationsBoardRefresh;
 
     public override void Initialize()
     {
@@ -24,6 +27,22 @@ public sealed partial class QlippothContainmentConsoleSystem : EntitySystem
         SubscribeLocalEvent<QlippothContainmentConsoleComponent, QlippothMarketPurchaseMessage>(OnMarketPurchase);
         SubscribeLocalEvent<QlippothContainmentConsoleComponent, QlippothMarketSelectMessage>(OnMarketSelect);
         SubscribeLocalEvent<QlippothContainmentConsoleComponent, ContainmentBlueprintBuildMessage>(OnBlueprintBuild);
+    }
+
+    public override void Update(float frameTime)
+    {
+        base.Update(frameTime);
+        if (_timing.CurTime < _nextOperationsBoardRefresh)
+            return;
+
+        _nextOperationsBoardRefresh = _timing.CurTime + OperationsBoardRefreshInterval;
+        var consoles = EntityQueryEnumerator<QlippothContainmentConsoleComponent>();
+        while (consoles.MoveNext(out var uid, out var component))
+        {
+            if (component.Title.Contains("Operations Board", StringComparison.OrdinalIgnoreCase) &&
+                _ui.IsUiOpen(uid, QGateRadarUiKey.Key))
+                UpdateUiState(uid, component, QGateRadarUiKey.Key);
+        }
     }
 
     private void OnMarketPurchase(EntityUid uid, QlippothContainmentConsoleComponent component,
@@ -73,6 +92,8 @@ public sealed partial class QlippothContainmentConsoleSystem : EntitySystem
         var detail = component.Status;
         if (TryComp<QGateRadarComponent>(uid, out var radar))
             detail = _qgates.GetTrackerDetail(_timing.CurTime);
+        else if (component.Title.Contains("Operations Board", StringComparison.OrdinalIgnoreCase))
+            detail = GetOperationsBoardDetail();
         else if (component.Title.Contains("Auction", StringComparison.OrdinalIgnoreCase))
         {
             detail = _market.GetMarketDisplay();
@@ -87,5 +108,42 @@ public sealed partial class QlippothContainmentConsoleSystem : EntitySystem
             : null;
         _ui.SetUiState(uid, uiKey,
             new QlippothContainmentConsoleBuiState(component.Title, statusOverride ?? component.Status, detail, entries));
+    }
+
+    private string GetOperationsBoardDetail()
+    {
+        _containment.EnsureContainmentDimensionCreated();
+
+        var lines = new List<string>
+        {
+            Loc.GetString("containment-operations-board-gates"),
+            _qgates.GetTrackerDetail(_timing.CurTime)
+        };
+        var chambers = new List<(ContainmentChamberComponent Chamber, TransformComponent Transform)>();
+        var query = EntityQueryEnumerator<ContainmentChamberComponent, TransformComponent>();
+        while (query.MoveNext(out _, out var chamber, out var xform))
+        {
+            if (_containment.IsContainmentDimension(xform.MapID))
+                chambers.Add((chamber, xform));
+        }
+
+        var breached = chambers.Count(entry => entry.Chamber.IsBreached);
+        var occupied = chambers.Count(entry => entry.Chamber.IsOccupied);
+        var unfinished = chambers.Count(entry => !entry.Chamber.IsBuilt);
+        lines.Add(string.Empty);
+        lines.Add(Loc.GetString("containment-operations-board-chambers",
+            ("total", chambers.Count),
+            ("occupied", occupied),
+            ("breached", breached),
+            ("unfinished", unfinished)));
+
+        foreach (var (chamber, _) in chambers.Where(entry => entry.Chamber.IsBreached))
+        {
+            lines.Add(Loc.GetString("containment-operations-board-breach",
+                ("chamber", chamber.ChamberId),
+                ("sector", chamber.Sector)));
+        }
+
+        return string.Join("\n", lines);
     }
 }

@@ -19,6 +19,8 @@
   startingGear: CMOGear
   icon: "JobIconChiefMedicalOfficer"
   supervisors: job-supervisors-captain
+  guides:
+  - QlippothOperations
   access:
   - Medical
   - Command

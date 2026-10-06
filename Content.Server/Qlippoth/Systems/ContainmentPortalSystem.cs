@@ -1,3 +1,5 @@
+using Content.Server.Chat.Systems;
+using Content.Shared.GameTicking;
 using Content.Shared.Interaction;
 using Content.Shared.Qlippoth.Components;
 using Robust.Shared.Map;
@@ -8,6 +10,7 @@ public sealed partial class ContainmentPortalSystem : EntitySystem
 {
     [Dependency] private ContainmentDimensionSystem _containment = default!;
     [Dependency] private SharedTransformSystem _transform = default!;
+    [Dependency] private ChatSystem _chat = default!;
     private readonly Dictionary<EntityUid, MapCoordinates> _returnCoordinates = new();
     private readonly Dictionary<EntityUid, MapCoordinates> _portalDestinations = new();
 
@@ -21,6 +24,15 @@ public sealed partial class ContainmentPortalSystem : EntitySystem
         base.Initialize();
         SubscribeLocalEvent<ContainmentPortalComponent, AfterInteractEvent>(OnAfterInteract);
         SubscribeLocalEvent<ContainmentPortalComponent, ActivateInWorldEvent>(OnActivateInWorld);
+        SubscribeLocalEvent<PlayerSpawnCompleteEvent>(OnPlayerSpawnComplete);
+    }
+
+    private void OnPlayerSpawnComplete(PlayerSpawnCompleteEvent args)
+    {
+        if (args.JobId != "DimensionCommander" || EnterContainment(args.Mob))
+            return;
+
+        _chat.DispatchServerMessage(args.Player, Loc.GetString("containment-dimension-commander-transfer-failed"));
     }
 
     private void OnActivateInWorld(EntityUid uid, ContainmentPortalComponent component, ActivateInWorldEvent args)
@@ -61,12 +73,11 @@ public sealed partial class ContainmentPortalSystem : EntitySystem
     {
         var returnCoordinates = _transform.GetMapCoordinates(user);
         _containment.EnsureContainmentDimensionCreated();
-        var mapId = _containment.ContainmentMapId;
-        if (mapId == MapId.Nullspace)
+        if (!_containment.TryGetContainmentEntryCoordinates(out var entryCoordinates))
             return false;
 
         _returnCoordinates[user] = returnCoordinates;
-        _transform.SetMapCoordinates(user, new MapCoordinates(new System.Numerics.Vector2(0f, 0f), mapId));
+        _transform.SetMapCoordinates(user, entryCoordinates);
         return true;
     }
 

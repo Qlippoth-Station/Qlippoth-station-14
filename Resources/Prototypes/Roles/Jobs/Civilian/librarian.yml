@@ -6,6 +6,8 @@
   startingGear: LibrarianGear
   icon: "JobIconLibrarian"
   supervisors: job-supervisors-hop
+  guides:
+  - QlippothOperations
   access:
   - Service
   - Maintenance

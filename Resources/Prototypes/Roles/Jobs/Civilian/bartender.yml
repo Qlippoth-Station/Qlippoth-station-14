@@ -10,6 +10,8 @@
   startingGear: BartenderGear
   icon: "JobIconBartender"
   supervisors: job-supervisors-hop
+  guides:
+  - QlippothOperations
   access:
   - Service
   - Maintenance
@@ -38,4 +40,3 @@
     neck: ClothingNeckScarfStripedBlack
     outerClothing: ClothingOuterArmorBasicSlim
     gloves: ClothingHandsGlovesColorBlack
-

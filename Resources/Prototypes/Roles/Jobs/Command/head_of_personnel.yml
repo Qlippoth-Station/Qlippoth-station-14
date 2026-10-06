@@ -23,6 +23,8 @@
   startingGear: HoPGear
   icon: "JobIconHeadOfPersonnel"
   supervisors: job-supervisors-captain
+  guides:
+  - QlippothOperations
   access:
   - Command
   - HeadOfPersonnel
@@ -82,4 +84,3 @@
     mask: ClothingMaskNeckGaiterRed
     neck: ClothingNeckCloakHop
     outerClothing: ClothingOuterWinterHoP
-

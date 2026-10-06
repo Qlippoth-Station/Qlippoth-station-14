@@ -47,6 +47,9 @@
   id: JobDetective
 
 - type: playTimeTracker
+  id: JobDimensionCommander
+
+- type: playTimeTracker
   id: JobERTChaplain
 
 - type: playTimeTracker
