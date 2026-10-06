@@ -1,4 +1,5 @@
 using Robust.Shared.GameStates;
+using Robust.Shared.Map;
 
 namespace Content.Shared.Qlippoth.Components;
 
@@ -35,6 +36,12 @@ public sealed partial class QlippothCorruptionComponent : Component
 
     [DataField, AutoNetworkedField]
     public EntityUid? SourceQlippoth;
+
+    [DataField, AutoNetworkedField]
+    public bool IsRemoving;
+
+    [DataField, AutoNetworkedField]
+    public MapId AppliedMapId = MapId.Nullspace;
 }
 
 /// <summary>The numbers a Qlippoth hands over when it corrupts someone.</summary>
@@ -45,3 +52,44 @@ public readonly record struct CorruptionProfile(
     float PulseInterval,
     float SpreadChance,
     float SpreadRadius);
+
+public enum QlippothCorruptionRemovalReason : byte
+{
+    Treated,
+    Expired
+}
+
+public sealed record QlippothCorruptionAppliedEvent(
+    EntityUid Target,
+    EntityUid? SourceQlippoth,
+    int Severity,
+    bool Spread,
+    long EvidenceId,
+    TimeSpan OccurredAt);
+
+public sealed record QlippothCorruptionSpreadEvent(EntityUid Source, EntityUid Target, int Severity);
+
+public sealed record QlippothCorruptionTransferredEvent(
+    EntityUid Target,
+    MapId FromMap,
+    MapId ToMap,
+    float RemainingSeconds);
+
+public sealed record QlippothCorruptionPulseEvent(
+    EntityUid Target,
+    EntityUid? SourceQlippoth,
+    int Severity,
+    long EvidenceId,
+    TimeSpan OccurredAt);
+
+public sealed record QlippothCorruptionRemovedEvent(
+    EntityUid Target,
+    EntityUid? SourceQlippoth,
+    int Severity,
+    QlippothCorruptionRemovalReason Reason,
+    long EvidenceId,
+    TimeSpan OccurredAt);
+
+public sealed record QlippothCorruptionSourceLostEvent(EntityUid Target, EntityUid SourceQlippoth);
+
+public sealed record QlippothCorruptionMitigatedEvent(EntityUid Target, EntityUid? SourceQlippoth, EntityUid Chamber);

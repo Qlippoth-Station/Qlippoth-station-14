@@ -15,6 +15,9 @@ public sealed partial class QlippothCapsuleComponent : Component
     [DataField("targetChamberId"), AutoNetworkedField]
     public string TargetChamberId { get; set; } = string.Empty;
 
+    [DataField("fallbackLocation"), AutoNetworkedField]
+    public EntityUid? FallbackLocation { get; set; }
+
     [DataField("failureAnnounced"), AutoNetworkedField]
     public bool FailureAnnounced { get; set; }
 }

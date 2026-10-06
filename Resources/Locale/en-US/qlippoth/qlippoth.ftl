@@ -1,4 +1,4 @@
-## Qlippoth Entity Names & Descriptions
+﻿## Qlippoth Entity Names & Descriptions
 
 ent-QlippothBase = Qlippoth
     .desc = An anomalous entity from beyond dimensional boundaries.
@@ -32,6 +32,12 @@ qlippoth-research-stress = Stress Level: {$stress}%
 qlippoth-research-phase = Threat Phase: {$phase}
 qlippoth-research-name = Entity: {$name}
 qlippoth-corruption-applied = Dimensional corruption has taken hold.
+qlippoth-corruption-pulse = Dimensional corruption surges through you.
+qlippoth-corruption-contained = The containment field suppresses the corruption exposure.
+qlippoth-corruption-treated = The dimensional corruption has been treated.
+qlippoth-corruption-expired = The dimensional corruption fades away.
+qlippoth-corruption-source-lost = The corruption's source has vanished; the remaining effect persists until it expires or is treated.
+qlippoth-corruption-status = Dimensional corruption | Severity: {$severity} | Time remaining: {$duration}s
 
 ## Command Market Console
 
@@ -44,3 +50,24 @@ containment-market-purchased = Qlippoth purchased. Transport capsule dispatched 
 containment-market-insufficient-funds = Insufficient station budget.
 containment-market-active = CentCom auction terminal online. No secured Qlippoth purchase is currently selected.
 containment-market-entry = - {$name} | {$phase}
+containment-market-destination = Destination chamber
+containment-market-chamber-unavailable = Select an available, built containment chamber before purchasing.
+containment-market-no-chambers = No available containment chambers. Build an engineering chamber or free an existing chamber.
+containment-market-out-of-stock = This Qlippoth is no longer available in the auction.
+containment-market-deployment-failed = The transport capsule could not be prepared. No funds were withdrawn.
+
+## Action system (generic strings used by initiations / results)
+
+verb-categories-qlippoth = Qlippoth
+verb-categories-qlippoth-admin = Qlippoth (Admin)
+
+qlippoth-ghost-role-servant-name = Qlippoth Servant
+qlippoth-ghost-role-servant-description = A creature spawned or enthralled by a Qlippoth.
+qlippoth-ghost-role-servant-rules = You are a monster. Obey your master.
+
+qlippoth-ghost-role-spawn-name = Qlippoth
+qlippoth-ghost-role-spawn-description = An anomalous entity from beyond dimensional boundaries.
+qlippoth-ghost-role-spawn-rules = You are free.
+
+qlippoth-announcement-sender = Unknown Signal
+qlippoth-whisper-wrap = [italic][color=#9b30ff]{$message}[/color][/italic]

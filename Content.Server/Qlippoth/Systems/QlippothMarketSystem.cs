@@ -10,22 +10,35 @@ using System.Linq;
 
 namespace Content.Server.Qlippoth.Systems;
 
+public enum QlippothMarketPurchaseResult : byte
+{
+    Success,
+    OutOfStock,
+    ChamberUnavailable,
+    InsufficientFunds,
+    CapsuleDeploymentFailed
+}
+
 /// <summary>
 /// Secured Qlippoths (cleared rifts) go on sale here. Price comes from the Qlippoth prototype (QlippothComponent.MarketPrice);
 /// the gate phase it came through is kept only for display.
 /// </summary>
-public sealed class QlippothMarketSystem : EntitySystem
+public sealed partial class QlippothMarketSystem : EntitySystem
 {
     private readonly List<EntProtoId> _availableMarketQlippoths = new();
     private readonly Dictionary<EntProtoId, QGatePhase> _marketPhases = new();
-    [Dependency] private readonly IPrototypeManager _prototypes = default!;
-    [Dependency] private readonly CargoSystem _cargo = default!;
-    [Dependency] private readonly StationSystem _stations = default!;
-    [Dependency] private readonly QlippothSystem _qlippoths = default!;
-    [Dependency] private readonly QGateSystem _gates = default!;
+    [Dependency] private IPrototypeManager _prototypes = default!;
+    [Dependency] private CargoSystem _cargo = default!;
+    [Dependency] private StationSystem _stations = default!;
+    [Dependency] private QlippothSystem _qlippoths = default!;
+    [Dependency] private QGateSystem _gates = default!;
+    [Dependency] private ContainmentDimensionSystem _containment = default!;
 
     public void AddSecuredQlippothToMarket(EntProtoId protoId, QGatePhase phase)
     {
+        if (_availableMarketQlippoths.Contains(protoId))
+            return;
+
         _availableMarketQlippoths.Add(protoId);
         _marketPhases[protoId] = phase;
     }
@@ -35,29 +48,40 @@ public sealed class QlippothMarketSystem : EntitySystem
         return _availableMarketQlippoths;
     }
 
-    public bool PurchaseQlippoth(EntProtoId protoId, EntityUid cargoSpawnLocation, string targetChamberId)
+    public QlippothMarketPurchaseResult PurchaseQlippoth(
+        EntProtoId protoId, EntityUid cargoSpawnLocation, string targetChamberId)
     {
         if (!_availableMarketQlippoths.Contains(protoId))
-            return false;
+            return QlippothMarketPurchaseResult.OutOfStock;
+
+        if (!_containment.IsChamberAvailable(targetChamberId))
+            return QlippothMarketPurchaseResult.ChamberUnavailable;
 
         var price = GetPrice(protoId);
         var station = _stations.GetOwningStation(cargoSpawnLocation);
-        if (station == null || !TryWithdraw(station.Value, price))
-            return false;
+        if (station == null || price < 0)
+            return QlippothMarketPurchaseResult.InsufficientFunds;
+
+        var capsuleUid = Spawn("CapsuleQlippothTransport", Transform(cargoSpawnLocation).Coordinates.Offset(new Vector2(0f, -1f)));
+        if (!TryComp<QlippothCapsuleComponent>(capsuleUid, out var capsule))
+        {
+            QueueDel(capsuleUid);
+            return QlippothMarketPurchaseResult.CapsuleDeploymentFailed;
+        }
+
+        capsule.ContainedQlippothProto = protoId;
+        capsule.TargetChamberId = targetChamberId;
+        capsule.FallbackLocation = cargoSpawnLocation;
+        Dirty(capsuleUid, capsule);
+        if (!TryWithdraw(station.Value, price))
+        {
+            QueueDel(capsuleUid);
+            return QlippothMarketPurchaseResult.InsufficientFunds;
+        }
 
         _availableMarketQlippoths.Remove(protoId);
         _marketPhases.Remove(protoId);
-
-        // Spawn transport capsule at Cargo
-        var capsuleUid = Spawn("CapsuleQlippothTransport", Transform(cargoSpawnLocation).Coordinates.Offset(new Vector2(0f, -1f)));
-        if (TryComp<QlippothCapsuleComponent>(capsuleUid, out var capsule))
-        {
-            capsule.ContainedQlippothProto = protoId;
-            capsule.TargetChamberId = targetChamberId;
-            Dirty(capsuleUid, capsule);
-        }
-
-        return true;
+        return QlippothMarketPurchaseResult.Success;
     }
 
     public IReadOnlyList<QlippothMarketEntry> GetMarketEntries()
@@ -81,10 +105,10 @@ public sealed class QlippothMarketSystem : EntitySystem
         return true;
     }
 
-    public bool PurchaseFirstAvailable(EntityUid spawnLocation, string targetChamberId)
+    public QlippothMarketPurchaseResult PurchaseFirstAvailable(EntityUid spawnLocation, string targetChamberId)
     {
         if (_availableMarketQlippoths.Count == 0)
-            return false;
+            return QlippothMarketPurchaseResult.OutOfStock;
 
         return PurchaseQlippoth(_availableMarketQlippoths[0], spawnLocation, targetChamberId);
     }

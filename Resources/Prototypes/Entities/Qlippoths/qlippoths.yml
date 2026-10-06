@@ -1,3 +1,4 @@
+﻿#region baseEntities
 # BASE QLIPPOTH ENTITIES TO USE AS PARENTS #
 # THE Base Qlippoth
 # QlippothBase carries ONLY what every Qlippoth shares: a default sprite and the four Qlippoth components.
@@ -16,13 +17,14 @@
     # Identity. Every Qlippoth has this; instances override what they need.
     #   gatePhases     -> which Q-Gate phases can bring this Qlippoth (several Qlippoths may share a phase; one is picked by spawnWeight)
     #   dungeon        -> how the rift behind the gate is built for this Qlippoth
-    #   marketPrice / researchPoints -> what it is worth once secured
+    #   marketPrice / researchGearPrototype -> market value and this species' terminal research reward
     # Passive effects (sanity aura, corruption) are NOT tied to phase: add a ProximityInitiation action (see MobQlippothPhase3/4).
     - type: Qlippoth
       gatePhases: [Phase1Rift]
       spawnWeight: 1
       marketPrice: 500
-      researchPoints: 50
+      # Species may replace this default Q-Gear and add guaranteed checkpoints below.
+      researchGearPrototype: QlippothQGearResonanceProbe
       dungeon: !type:ArenaDungeon
         width: 20
         height: 15
@@ -36,13 +38,22 @@
       movementType: Animated
     - type: QlippothActions
       actions:
+        # Inherited by every Qlippoth that does not declare its own `actions:` list.
+        # These two exist so a bare base entity can be checked in-game: pull it (sound) and click it (popup).
         - !type:QlippothAction
           actionName: "template"
           initiation: !type:OnPullInitiation
           results:
-            - !type:PlaySoundResult
-              soundPath: /Audio/Qlippoth/qlippoth.ogg
+            - !type:TestSoundResult
               volume: 5
+        - !type:QlippothAction
+          actionName: "templateClick"     # empty-hand click; proves the entity is interactable at all
+          initiation: !type:OnInteractHandInitiation
+          cooldown: 1
+          results:
+            - !type:DebugTraceResult
+            - !type:SayActorNameResult
+            - !type:TestSoundResult
 
 
 # Presence and Object Type Parents
@@ -124,7 +135,13 @@
   - BaseStructureDynamic
   components:
     # Large Specific
+    # What "Large" means: a free-standing object that is too big to pick up but is NOT part of the station grid.
+    # It is dynamic (it can be pushed and pulled around), it blocks movement, it can be damaged and examined,
+    # and it is clickable: empty-hand click, click-with-item and the context menu all reach the action system
+    # (see the "templateClick" action inherited from QlippothBase).
+    # Use QlippothStructureBase / QlippothWallBase instead when the Qlippoth should be anchored and immovable.
     - type: Physics
+      bodyType: Dynamic
     - type: Fixtures
       fixtures:
         fix1:
@@ -137,7 +154,29 @@
           layer:
           - MachineLayer
     - type: Pullable
+    # Health. BaseStructure gives no health at all, so without these three a Large Qlippoth cannot be hurt:
+    # OnDamagedInitiation and OnDestroyedInitiation would never fire and DamageExaminable would show nothing.
+    #   Damageable  -> how incoming damage is scaled (resistances)
+    #   Injurable   -> which damage types it can take at all (no container = takes nothing)
+    #   Destructible -> what counts as "destroyed"; the Destruction act is what raises DestructionEventArgs
+    # Instances override the numbers; a tougher Qlippoth just raises the threshold.
+    - type: Damageable
+      damageModifierSet: Metallic
+    - type: Injurable
+      damageContainer: Inorganic
+    - type: Destructible
+      thresholds:
+      - trigger:
+          !type:DamageTrigger
+          damage: 200
+        behaviors:
+        - !type:DoActsBehavior
+          acts: ["Destruction"]
     - type: DamageExaminable # idk if it exists in parents but sure
+    # Every Large Qlippoth is a Large object; instances no longer need to repeat this.
+    - type: QlippothPresence
+      presenceType: Object
+      objectSize: Large
     # Qlippoth Specific
 
 - type: entity
@@ -180,7 +219,7 @@
       bodyType: Dynamic
     - type: QlippothMovement
       movementType: Inanimate
-    - type: Pullable
+    # - type: Pullable Maybe another type can be added for physics in addition to movement? or could just have a guide for certain types.
 
 - type: entity
   id: QlippothStaticBase
@@ -238,69 +277,1374 @@
   - type: MobMover
   - type: MovementSpeedModifier
 # conditionally animated and specialists are too dependent on c# code so they are for later.
+#endregion
 
+#region test entities
 
-
-# QLIPPOTH ENTITIES TO SPAWN #
+# SHOWCASE INSTANCE - RESULT TESTER #
+# ============================================================================================
+# RULE: EVERY QlippothResult MUST BE ON THIS ENTITY. New Results should be constantly added to this as this is the main testing object for results.
+# When you add a new result class to Content.Server/Qlippoth/Actions/QlippothResult.cs, add it to one of the
+# verbs below (or to a new verb) in the same change. This idol is the in-game tester for the whole result list.
+#
+# How it works:
+#   - Only VerbInitiation is used. Right-click the idol -> Qlippoth submenu -> pick a verb.
+#   - Results are packed several per verb so the menu stays short (100+ single verbs would not fit).
+#     The verb text is "[NN] Group: ResultA, ResultB, ..." and lists the results it runs, in order.
+#   - Every action has continueOnFailure: true, so one failing result does not hide the ones after it.
+#     Each verb starts with DebugTraceResult so you can see it fired.
+#   - "target" of a verb = the player who clicked. Offspring = the mobs the idol spawned in [15].
+#   - Verbs marked [!] are disruptive (explosions, round events, mind swap). Use them on a test server.
+#   - [19] Undo puts back what the other verbs changed (components, name, anchor, doors, pinpointer, polymorph).
+#   - Some results only make sense under other initiations and are EXPECTED to fail here (listed in [13]).
+# ============================================================================================
 - type: entity
-  id: QlippothPrototype
-  name: Qlippoth Tester
-  parent: QlippothBase
-  abstract: false # set true in base objects, overriden
-  components: # this needs to be remade after all the systems are in place.
+  id: ResultShowcaseIdol
+  parent: [QlippothLargeBase, SolutionBeaker, SolutionSmall] # solution "beaker" (60u) for the [10] solution results
+  name: idol of many mouths
+  description: A squat stone figure. Every one of its mouths is slightly open. Admins use it to test every Qlippoth result.
+  components:
     - type: Qlippoth
-      gatePhases: []   # admin-spawn only, never comes through a gate
+      gatePhases: []   # admin-spawn only
+      marketPrice: 1500
+      researchGearPrototype: QlippothQGearResonanceProbe
+    - type: QlippothMovement
+      movementType: Inanimate
+    - type: PointLight
+      radius: 3
+      energy: 1
+      color: "#9B30FF"
+    # Pinpointer pieces (same as QlippothGazeScepter) so SetPinpointerActive / PointAtNearest have something to drive.
     - type: Sprite
-      sprite: Qlippoth/king_in_yellow.rsi
       layers:
         - state: front
+          map: ["enum.PinpointerLayers.Base"]
+        - sprite: Objects/Devices/pinpointer.rsi
+          state: pinonnull
+          map: ["enum.PinpointerLayers.Screen"]
+          shader: unshaded
+          visible: false
+    - type: Pinpointer
+      canRetarget: false
+      reachedDistance: 1.5
+      closeDistance: 6
+      mediumDistance: 14
+    - type: Appearance
+    - type: GenericVisualizer
+      visuals:
+        enum.PinpointerVisuals.IsActive:
+          enum.PinpointerLayers.Screen:
+            True: { visible: true }
+            False: { visible: false }
+        enum.PinpointerVisuals.TargetDistance:
+          enum.PinpointerLayers.Screen:
+            Unknown: { state: pinonnull }
+            Reached: { state: pinondirect }
+            Close: { state: pinonclose }
+            Medium: { state: pinonmedium }
+            Far: { state: pinonfar }
     - type: QlippothActions
       actions:
+        # ---------------- [01] Text / chat ----------------
         - !type:QlippothAction
-          actionName: "templatePullSound"
-          initiation: !type:OnPullInitiation
+          actionName: test01Text
+          continueOnFailure: true
+          initiation: !type:VerbInitiation
+            key: test01
+            text: "[01] Text: DebugTrace, Popup, ExamineText, Speak, WhisperTo, SayActorName, MindMessage, ForceSay, ForceEmote, Log"
+            priority: 100
           results:
+            - !type:DebugTraceResult
+            - !type:PopupResult
+              message: "PopupResult works."
+              recipient: Everyone
+            - !type:ExamineTextResult     # only shows under OnExaminedInitiation; failing here is expected
+              message: "ExamineTextResult works."
+            - !type:SpeakResult
+              messages: ["SpeakResult works.", "I have many mouths."]
+            - !type:WhisperToResult
+              message: "WhisperToResult works (only you see this)."
+            - !type:SayActorNameResult
+              format: "SayActorNameResult: {name}"
+            - !type:MindMessageResult
+              message: "MindMessageResult works."
+            - !type:ForceSayResult
+              message: "ForceSayResult made me say this."
+            - !type:ForceEmoteResult
+              emote: Scream
+            - !type:LogResult
+              message: "LogResult works (server log)."
+
+        # ---------------- [02] Sound / light ----------------
+        - !type:QlippothAction
+          actionName: test02SoundLight
+          continueOnFailure: true
+          initiation: !type:VerbInitiation
+            key: test02
+            text: "[02] Sound/Light: PlaySound, TestSound, SetLight, ToggleGlow, PoweredLight(toggle)"
+            priority: 99
+          results:
+            - !type:DebugTraceResult
             - !type:PlaySoundResult
               soundPath: /Audio/Qlippoth/qlippoth.ogg
-              volume: 5
+              volume: 3
+            - !type:TestSoundResult
+            - !type:SetLightResult
+              color: "#00FFAA"
+              radius: 4
+            - !type:ToggleGlowResult
+              color: "#FF4500"
+              radius: 5
+            - !type:PoweredLightResult
+              mode: Toggle
+
+        # ---------------- [03] Effects on you ----------------
+        - !type:QlippothAction
+          actionName: test03Effects
+          continueOnFailure: true
+          initiation: !type:VerbInitiation
+            key: test03
+            text: "[03] Effects on you: Damage, Heal, StaminaDamage, Jitter, Flash, SpeedModifier, StatusEffect, DropHeldItems, Knockdown, Stun"
+            priority: 98
+          results:
+            - !type:DebugTraceResult
+            - !type:DamageResult
+              damage:
+                types:
+                  Blunt: 5
+            - !type:HealResult
+              healAll: true
+            - !type:StaminaDamageResult
+              amount: 20
+            - !type:JitterResult
+              duration: 2
+            - !type:FlashResult
+              duration: 2
+            - !type:SpeedModifierResult
+              duration: 4
+            - !type:StatusEffectResult
+              effect: StatusEffectBlindness
+              duration: 2
+            - !type:DropHeldItemsResult
+            - !type:KnockdownResult
+              duration: 1
+            - !type:StunResult
+              duration: 1
+
+        # ---------------- [04] Hazards on you ----------------
+        - !type:QlippothAction
+          actionName: test04Hazards
+          continueOnFailure: true
+          initiation: !type:VerbInitiation
+            key: test04
+            text: "[04] Hazards on you: Ignite, Extinguish, Electrocute, InjectReagent"
+            priority: 97
+          results:
+            - !type:DebugTraceResult
+            - !type:IgniteResult
+              fireStacks: 1
+            - !type:ExtinguishResult
+            - !type:ElectrocuteResult
+              damage: 5
+              duration: 1
+            - !type:InjectReagentResult
+              reagent: Water
+              amount: 5
+
+        # ---------------- [05] Sanity / corruption ----------------
+        - !type:QlippothAction
+          actionName: test05Sanity
+          continueOnFailure: true
+          initiation: !type:VerbInitiation
+            key: test05
+            text: "[05] Sanity: DamageSanity, RestoreSanity, SetSanityDrainMultiplier, ApplyCorruption, RemoveCorruption"
+            priority: 96
+          results:
+            - !type:DebugTraceResult
+            - !type:DamageSanityResult
+              amount: 5
+            - !type:RestoreSanityResult
+              amount: 5
+            - !type:SetSanityDrainMultiplierResult
+              multiplier: 1
+            - !type:ApplyCorruptionResult
+              duration: 10
+            - !type:RemoveCorruptionResult
+
+        # ---------------- [06] State ----------------
+        - !type:QlippothAction
+          actionName: test06State
+          continueOnFailure: true
+          initiation: !type:VerbInitiation
+            key: test06
+            text: "[06] State: SetState, ToggleState, IncrementState, RequireState, ClearState"
+            priority: 95
+          results:
+            - !type:DebugTraceResult
+            - !type:SetStateResult
+              key: probe
+              value: a
+            - !type:ToggleStateResult       # a -> b
+              key: probe
+              values: [a, b]
+            - !type:IncrementStateResult
+              key: counter
+              max: 99
+              wrap: true
+            - !type:RequireStateResult      # passes only if ToggleState worked
+              key: probe
+              value: b
+            - !type:PopupResult
+              message: "State results work (probe went a -> b)."
+              recipient: Everyone
+            - !type:ClearStateResult
+              key: probe
+
+        # ---------------- [07] Flow ----------------
+        - !type:QlippothAction
+          actionName: test07Flow
+          continueOnFailure: true
+          initiation: !type:VerbInitiation
+            key: test07
+            text: "[07] Flow: Chance, RequireTarget, RequireSituation, Random, Group, ForEachTarget, Repeat, ResetCooldown, Chain, Delay, CancelDelay, Stop"
+            priority: 94
+          results:
+            - !type:DebugTraceResult
+            - !type:ChanceResult
+              chance: 1
+            - !type:RequireTargetResult
+              filter: { onlyMobs: true }
+            - !type:RequireSituationResult
+              held: false
+            - !type:RandomResult
+              options:
+                - weight: 1
+                  result: !type:PopupResult
+                    message: "RandomResult picked A."
+                    recipient: Everyone
+                - weight: 1
+                  result: !type:PopupResult
+                    message: "RandomResult picked B."
+                    recipient: Everyone
+            - !type:GroupResult
+              results:
+                - !type:PopupResult
+                  message: "GroupResult works."
+                  recipient: Everyone
+            - !type:ForEachTargetResult
+              targeting: { mode: InRange, range: 3, filter: { onlyMobs: true } }
+              results:
+                - !type:JitterResult
+                  duration: 1
+            - !type:RepeatResult
+              times: 3
+              results:
+                - !type:TestSoundResult
+            - !type:ResetCooldownResult
+            - !type:ChainResult             # no OnChainInitiation listens (verbs only); checks it runs without error
+              key: noListener
+            - !type:DelayResult
+              key: noListener
+              delay: 5
+            - !type:CancelDelayResult
+              key: noListener
+            - !type:StopResult
+            - !type:PopupResult             # must NOT show: StopResult ends the list
+              message: "BUG: StopResult did not stop."
+              recipient: Everyone
+
+        # ---------------- [08] Spawn / produce ----------------
+        - !type:QlippothAction
+          actionName: test08Spawn
+          continueOnFailure: true
+          initiation: !type:VerbInitiation
+            key: test08
+            text: "[08] Spawn: SpawnEffect, SpawnItem, ThrowSpawned, SpawnOnTilesInRange, ShootProjectile, ReleaseGas"
+            priority: 93
+          results:
+            - !type:DebugTraceResult
+            - !type:SpawnEffectResult
+              prototype: EffectSparks
+            - !type:SpawnItemResult
+              spawnItem: FoodBreadPlain
+            - !type:ThrowSpawnedResult
+              prototype: FoodBanana
+              count: 2
+            - !type:SpawnOnTilesInRangeResult
+              prototype: EffectSparks
+              range: 1
+            - !type:ShootProjectileResult
+              projectile: BulletFoam
+            - !type:ReleaseGasResult
+              gasType: Oxygen
+              moles: 5
+
+        # ---------------- [09] Atmos / tiles / puddles ----------------
+        - !type:QlippothAction
+          actionName: test09Atmos
+          continueOnFailure: true
+          initiation: !type:VerbInitiation
+            key: test09
+            text: "[09] Atmos/Tiles: HeatTile, RemoveGas, Smoke, SpillReagent, ConvertTiles"
+            priority: 92
+          results:
+            - !type:DebugTraceResult
+            - !type:HeatTileResult
+              delta: 10
+            - !type:RemoveGasResult
+              gas: Oxygen
+              moles: 5
+            - !type:SmokeResult
+              spread: 2
+              duration: 4
+            - !type:SpillReagentResult
+              reagent: Water
+              amount: 10
+            - !type:ConvertTilesResult
+              tile: FloorWood
+              radius: 1
+              chance: 0.5
+
+        # ---------------- [10] Solutions (on the idol's own "beaker" solution) ----------------
+        - !type:QlippothAction
+          actionName: test10Solution
+          continueOnFailure: true
+          initiation: !type:VerbInitiation
+            key: test10
+            text: "[10] Solution: AddReagent, HeatSolution, SpillSolution, EmptySolution"
+            priority: 91
+          results:
+            - !type:DebugTraceResult
+            - !type:AddReagentResult
+              reagent: Water
+              amount: 20
+            - !type:HeatSolutionResult
+              temperature: 350
+            - !type:SpillSolutionResult
+            - !type:AddReagentResult
+              reagent: Water
+              amount: 10
+            - !type:EmptySolutionResult
+
+        # ---------------- [11] Movement ----------------
+        - !type:QlippothAction
+          actionName: test11Movement
+          continueOnFailure: true
+          initiation: !type:VerbInitiation
+            key: test11
+            text: "[11] Movement: Pull, Face, Throw, Push, SwapPlaces, Teleport, SetAnchored(on)"
+            priority: 90
+          results:
+            - !type:DebugTraceResult
+            - !type:PullResult              # you start pulling the idol
+              puller: { mode: Target }
+              targeting: { mode: Self }
+            - !type:FaceResult
+            - !type:ThrowResult
+              mode: AwayFromSelf
+              distance: 2
+            - !type:PushResult
+              force: 20
+            - !type:SwapPlacesResult
+            - !type:TeleportResult
+              destination: { mode: RandomNearSelf, range: 3 }
+              effect: EffectVoidBlink
+            - !type:SetAnchoredResult       # [19] Undo unanchors it
+              anchored: true
+
+        # ---------------- [12] Doors / pinpointer ----------------
+        - !type:QlippothAction
+          actionName: test12Doors
+          continueOnFailure: true
+          initiation: !type:VerbInitiation
+            key: test12
+            text: "[12] Doors/Pinpointer: OpenDoor, SetDoorBolts, HoldDoorsInRange, SetPinpointerActive, PointAtNearest"
+            priority: 89
+          results:
+            - !type:DebugTraceResult
+            - !type:OpenDoorResult
+              targeting: { mode: NearestInRange, range: 6, filter: { requiredComponent: Door } }
+            - !type:SetDoorBoltsResult
+              down: true
+              targeting: { mode: NearestInRange, range: 6, filter: { requiredComponent: Door } }
+            - !type:HoldDoorsInRangeResult
+              mode: Sealed
+              range: 6
+              duration: 10
+            - !type:SetPinpointerActiveResult
+              active: true
+            - !type:PointAtNearestResult
+              targetComponents: [QGate, Door]
+
+        # ---------------- [13] Holder / weapon (EXPECTED TO FAIL here) ----------------
+        # These edit the damage event of OnHolderDamaged / OnMeleeHit / OnAttacked. A verb has no such event,
+        # so they return false. The verb only proves they load and run without crashing.
+        - !type:QlippothAction
+          actionName: test13Holder
+          continueOnFailure: true
+          initiation: !type:VerbInitiation
+            key: test13
+            text: "[13] Holder/Weapon (fail expected): NegateDamage, ScaleIncomingDamage, BonusMeleeDamage, BonusAttackedDamage"
+            priority: 88
+          results:
+            - !type:DebugTraceResult
+            - !type:NegateDamageResult
+            - !type:ScaleIncomingDamageResult
+              multiplier: 0.5
+            - !type:BonusMeleeDamageResult
+              damage:
+                types:
+                  Blunt: 5
+            - !type:BonusAttackedDamageResult
+              damage:
+                types:
+                  Blunt: 5
+
+        # ---------------- [14] Components / name ----------------
+        - !type:QlippothAction
+          actionName: test14Components
+          continueOnFailure: true
+          initiation: !type:VerbInitiation
+            key: test14
+            text: "[14] Components: AddComponents(OwO on you), Rename(idol)"
+            priority: 87
+          results:
+            - !type:DebugTraceResult
+            - !type:AddComponentsResult     # [19] Undo removes it
+              components:
+                - type: OwOAccent
+            - !type:RenameResult
+              name: "renamed idol"
+
+        # ---------------- [15] Reproduce ----------------
+        - !type:QlippothAction
+          actionName: test15Reproduce
+          continueOnFailure: true
+          initiation: !type:VerbInitiation
+            key: test15
+            text: "[15] Reproduce: SpawnMob, SpawnQlippoth, SpawnCopy, Enthrall(offspring), OfferGhostRole(offspring)"
+            priority: 86
+          results:
+            - !type:DebugTraceResult
+            - !type:SpawnMobResult
+              spawnMob: MobMouse
+              ghostRole: false
+              maxAlive: 3
+            - !type:SpawnQlippothResult
+              spawnQlippoth: MobQlippothTest
+              maxAlive: 1
+            - !type:SpawnCopyResult
+              maxAlive: 1
+            - !type:EnthrallResult
+              targeting: { mode: Offspring }
+            - !type:OfferGhostRoleResult
+              targeting: { mode: Offspring }
+
+        # ---------------- [16] Kill offspring ----------------
+        - !type:QlippothAction
+          actionName: test16Offspring
+          continueOnFailure: true
+          initiation: !type:VerbInitiation
+            key: test16
+            text: "[16] Offspring end: SetMobState(dead), Gib, Delete, CullOffspring"
+            priority: 85
+          results:
+            - !type:DebugTraceResult
+            - !type:SetMobStateResult
+              state: Dead
+              targeting: { mode: Offspring }
+            - !type:GibResult               # mice gib; Qlippoth offspring without a body are left for Delete
+              targeting: { mode: Offspring }
+            - !type:DeleteResult
+              targeting: { mode: Offspring }
+            - !type:CullOffspringResult
+
+        # ---------------- [17] Conversion ----------------
+        - !type:QlippothAction
+          actionName: test17Conversion
+          continueOnFailure: true
+          initiation: !type:VerbInitiation
+            key: test17
+            text: "[17] Conversion: ReplaceEntity(food -> bread), Polymorph(you -> carp, 10s)"
+            priority: 84
+          results:
+            - !type:DebugTraceResult
+            - !type:SpawnItemResult
+              spawnItem: FoodBanana
+            - !type:ReplaceEntityResult
+              prototype: FoodBreadPlain
+              transferMind: false
+              targeting: { mode: NearestInRange, range: 3, filter: { requiredComponent: Edible } }
+            - !type:PolymorphResult
+              configuration:
+                entity: MobCarpMagic
+                duration: 10
+                forced: true
+                revertOnDeath: true
+
+        # ---------------- [18] Events ----------------
+        - !type:QlippothAction
+          actionName: test18Events
+          continueOnFailure: true
+          initiation: !type:VerbInitiation
+            key: test18
+            text: "[18] Events: Announce, DebugAnnounce, Signal"
+            priority: 83
+          results:
+            - !type:DebugTraceResult
+            - !type:AnnounceResult
+              message: "AnnounceResult works."
+              playSound: false
+            - !type:DebugAnnounceResult
+              note: "DebugAnnounceResult works."
+            - !type:SignalResult
+              signal: showcase-test
+              range: 10
+
+        # ---------------- [19] Undo ----------------
+        - !type:QlippothAction
+          actionName: test19Undo
+          continueOnFailure: true
+          initiation: !type:VerbInitiation
+            key: test19
+            text: "[19] Undo: RemoveComponents, Rename(back), SetAnchored(off), Pull(release), SetDoorBolts(up), HoldDoors(release), Pinpointer(off), RevertPolymorph, SetLight(back)"
+            priority: 82
+          results:
+            - !type:DebugTraceResult
+            - !type:RemoveComponentsResult
+              components: [OwOAccent]
+            - !type:RenameResult
+              name: "idol of many mouths"
+            - !type:SetAnchoredResult
+              anchored: false
+            - !type:PullResult
+              puller: { mode: Target }
+              targeting: { mode: Self }
+              release: true
+            - !type:SetDoorBoltsResult
+              down: false
+              targeting: { mode: NearestInRange, range: 6, filter: { requiredComponent: Door } }
+            - !type:HoldDoorsInRangeResult
+              mode: Released
+              range: 6
+            - !type:SetPinpointerActiveResult
+              active: false
+            - !type:RevertPolymorphResult  # click it while you are the carp
+            - !type:SetLightResult
+              color: "#9B30FF"
+              radius: 3
+
+        # ---------------- [!] disruptive ----------------
+        - !type:QlippothAction
+          actionName: test20Blast
+          continueOnFailure: true
+          initiation: !type:VerbInitiation
+            key: test20
+            text: "[20][!] Blast: Explosion(small), Emp, Hotspot"
+            priority: 81
+          results:
+            - !type:DebugTraceResult
+            - !type:ExplosionResult
+              totalIntensity: 5
+              maxTileIntensity: 2
+            - !type:EmpResult
+              range: 2
+            - !type:HotspotResult
+              temperature: 600
+              volume: 20
+        - !type:QlippothAction
+          actionName: test21Round
+          continueOnFailure: true
+          initiation: !type:VerbInitiation
+            key: test21
+            text: "[21][!] Round: AlertLevel(blue), StartGameRule, EndGameRule, CallShuttle, CallShuttle(recall)"
+            priority: 80
+          results:
+            - !type:DebugTraceResult
+            - !type:AlertLevelResult
+              level: blue
+            - !type:StartGameRuleResult
+              ruleId: MassHallucinations
+            - !type:EndGameRuleResult
+              ruleId: MassHallucinations
+            - !type:CallShuttleResult
+            - !type:CallShuttleResult
+              recall: true
+        - !type:QlippothAction
+          actionName: test22Gates
+          continueOnFailure: true
+          initiation: !type:VerbInitiation
+            key: test22
+            text: "[22][!] Gates: BreachGates(nearest)"
+            priority: 79
+          results:
+            - !type:DebugTraceResult
+            - !type:BreachGatesResult
+        - !type:QlippothAction
+          actionName: test23Mind
+          continueOnFailure: true
+          initiation: !type:VerbInitiation
+            key: test23
+            text: "[23][!] Mind: TransferMind(swap with idol)"
+            priority: 78
+          results:
+            - !type:DebugTraceResult
+            - !type:TransferMindResult
+              mode: Swap
+        # Research experiments supply the event args needed by the specimen-local progress result.
+        - !type:QlippothAction
+          actionName: testResearchProgress
+          initiation: !type:OnResearchExperimentInitiation
+          results:
+            - !type:AdvanceQlippothResearchResult
+              amount: 1
+
+
+# SHOWCASE INSTANCE - INITIATION TESTER #
+# ============================================================================================
+# RULE: EVERY QlippothInitiation MUST BE ON THIS ENTITY.
+# When you add a new initiation class to Content.Server/Qlippoth/Actions/QlippothInitiation.cs, add one action for it
+# below in the same change. This idol is the in-game tester for the whole initiation list.
+#
+# How it works:
+#   - One action per initiation. The ONLY result is DebugAnnounceResult, so every firing is a station-wide
+#     announcement: "<actionName>" INITIATION, TRIGGERED "<InitiationClass>" RESULT [idol -> target].
+#     You can see it from anywhere on the map; the same line also goes to the server log.
+#   - It is a small item, so hand / pocket / throw / container initiations can be tested by hand.
+#   - Polled initiations (interval, range, gas, temperature...) have long intervals or cooldowns so they do not spam.
+#   - Pairs with ResultShowcaseIdol: its [18] Events verb sends "showcase-test", which OnSignal here listens to.
+#   - Some initiations cannot fire on this entity by design; they are still here so they load. See "NOT FIREABLE" notes.
+# ============================================================================================
+- type: entity
+  id: InitiationShowcaseIdol
+  parent: QlippothItemBase
+  name: idol of many ears
+  description: A small stone figure covered in ears. Admins use it to test every Qlippoth initiation.
+  components:
+    - type: Qlippoth
+      gatePhases: []   # admin-spawn only
+      marketPrice: 100
+      researchGearPrototype: QlippothQGearResonanceProbe
     - type: QlippothMovement
-      movementType: Animated
-    - type: QlippothPresence
-      presenceType: Object
-      objectSize: Huge
-    - type: Item
-      size: Small
-    - type: Animateable
-    - type: Clickable
-    - type: InteractionOutline
-    - type: MovedByPressure
-    - type: EmitSoundOnCollide
-      sound:
-        collection: WeakHit
-    - type: EmitSoundOnLand
-      sound:
-        path: /Audio/Effects/drop.ogg
-        params:
-          volume: 2
-    - type: Physics
-      bodyType: Dynamic
-      fixedRotation: false
-    - type: Fixtures
-      fixtures:
-        fix1:
-          shape:
-            !type:PhysShapeAabb
-            bounds: "-0.25,-0.25,0.25,0.25"
-          density: 20
-          mask:
-          - ItemMask
-          restitution: 0.3
-          friction: 0.2
-    - type: Pullable
-    - type: DamageExaminable
+      movementType: Inanimate
+    - type: Sprite
+      layers:
+        - state: front
+    # Health, so OnDamaged / OnHealthThreshold / OnDestroyed can fire (items have none by default).
+    - type: Damageable
+      damageModifierSet: Metallic
+    - type: Injurable
+      damageContainer: Inorganic
+    - type: Destructible
+      thresholds:
+      - trigger:
+          !type:DamageTrigger
+          damage: 50
+        behaviors:
+        - !type:DoActsBehavior
+          acts: ["Destruction"]
+    # Item action button (the gaze scepter's "Seek" button, key: seek) for OnAction / OnSelfAction.
+    - type: ActionGrant
+      actions:
+        - ActionQlippothGazeSeek
+    - type: ItemActionGrant
+      actions:
+        - ActionQlippothGazeSeek
+    - type: QlippothActions
+      state:
+        showcase: "on"    # for WhileState
+      actions:
+        # ---------------- Trigger ----------------
+        - !type:QlippothAction
+          actionName: pull
+          initiation: !type:OnPullInitiation
+          results: [ !type:DebugAnnounceResult ]
+        - !type:QlippothAction
+          actionName: pullStopped
+          initiation: !type:OnPullStoppedInitiation
+          results: [ !type:DebugAnnounceResult ]
+        - !type:QlippothAction
+          actionName: pickedUp
+          initiation: !type:OnPickedUpInitiation
+          results: [ !type:DebugAnnounceResult ]
+        - !type:QlippothAction
+          actionName: dropped
+          initiation: !type:OnDroppedInitiation
+          results: [ !type:DebugAnnounceResult ]
+        - !type:QlippothAction
+          actionName: holderDamaged       # hold it and get hit
+          initiation: !type:OnHolderDamagedInitiation
+          cooldown: 2
+          results: [ !type:DebugAnnounceResult ]
+        - !type:QlippothAction
+          actionName: meleeHit            # hit something with it
+          initiation: !type:OnMeleeHitInitiation
+          results: [ !type:DebugAnnounceResult ]
+        - !type:QlippothAction
+          actionName: corruptionApplied   # NOT FIREABLE here unless this idol applies corruption
+          initiation: !type:OnCorruptionAppliedInitiation
+          results: [ !type:DebugAnnounceResult ]
+        - !type:QlippothAction
+          actionName: corruptionPulse     # NOT FIREABLE here unless this idol applies corruption
+          initiation: !type:OnCorruptionPulseInitiation
+          results: [ !type:DebugAnnounceResult ]
+        - !type:QlippothAction
+          actionName: damaged
+          initiation: !type:OnDamagedInitiation
+          cooldown: 2
+          results: [ !type:DebugAnnounceResult ]
+        - !type:QlippothAction
+          actionName: mobState            # NOT FIREABLE: the idol has no MobState
+          initiation: !type:OnMobStateInitiation
+          results: [ !type:DebugAnnounceResult ]
+        - !type:QlippothAction
+          actionName: holderMobState      # hold it while you crit / die
+          initiation: !type:OnHolderMobStateInitiation
+          results: [ !type:DebugAnnounceResult ]
+        - !type:QlippothAction
+          actionName: destroyed           # 50 damage
+          initiation: !type:OnDestroyedInitiation
+          results: [ !type:DebugAnnounceResult ]
+        - !type:QlippothAction
+          actionName: spawn
+          initiation: !type:OnSpawnInitiation
+          results: [ !type:DebugAnnounceResult ]
+        - !type:QlippothAction
+          actionName: collide             # throw it at someone
+          initiation: !type:OnCollideInitiation
+          cooldown: 2
+          results: [ !type:DebugAnnounceResult ]
+        - !type:QlippothAction
+          actionName: stepTrigger         # NOT FIREABLE: the idol has no StepTrigger
+          initiation: !type:OnStepTriggerInitiation
+          results: [ !type:DebugAnnounceResult ]
+        - !type:QlippothAction
+          actionName: anchorChanged       # NOT FIREABLE: an item cannot be anchored
+          initiation: !type:OnAnchorChangedInitiation
+          results: [ !type:DebugAnnounceResult ]
+        - !type:QlippothAction
+          actionName: powerChanged        # NOT FIREABLE: the idol has no power receiver
+          initiation: !type:OnPowerChangedInitiation
+          results: [ !type:DebugAnnounceResult ]
+        - !type:QlippothAction
+          actionName: stateChanged        # NOT FIREABLE: no result here changes state
+          initiation: !type:OnStateChangedInitiation
+            key: showcase
+          results: [ !type:DebugAnnounceResult ]
+        - !type:QlippothAction
+          actionName: offspringDied       # NOT FIREABLE: this idol spawns no offspring
+          initiation: !type:OnOffspringDiedInitiation
+          results: [ !type:DebugAnnounceResult ]
+        - !type:QlippothAction
+          actionName: enterRange
+          initiation: !type:OnEnterRangeInitiation
+            range: 3
+          cooldown: 10
+          results: [ !type:DebugAnnounceResult ]
+        - !type:QlippothAction
+          actionName: leaveRange
+          initiation: !type:OnLeaveRangeInitiation
+            range: 3
+          cooldown: 10
+          results: [ !type:DebugAnnounceResult ]
+        - !type:QlippothAction
+          actionName: crowd               # 2+ people within 6 tiles
+          initiation: !type:OnCrowdInitiation
+            minCount: 2
+          cooldown: 10
+          results: [ !type:DebugAnnounceResult ]
+        - !type:QlippothAction
+          actionName: gas                 # 1+ mol plasma on its tile
+          initiation: !type:OnGasInitiation
+            gas: Plasma
+          results: [ !type:DebugAnnounceResult ]
+        - !type:QlippothAction
+          actionName: temperature         # below 250 K (e.g. space)
+          initiation: !type:OnTemperatureInitiation
+            max: 250
+          results: [ !type:DebugAnnounceResult ]
+        - !type:QlippothAction
+          actionName: pressure            # below 50 kPa (e.g. space)
+          initiation: !type:OnPressureInitiation
+            max: 50
+          results: [ !type:DebugAnnounceResult ]
+        - !type:QlippothAction
+          actionName: healthThreshold     # damage above 10
+          initiation: !type:OnHealthThresholdInitiation
+            threshold: 10
+          cooldown: 10
+          results: [ !type:DebugAnnounceResult ]
+        - !type:QlippothAction
+          actionName: holderSanity        # held by someone with sanity 0-100
+          initiation: !type:OnHolderSanityInitiation
+            max: 100
+          results: [ !type:DebugAnnounceResult ]
+        - !type:QlippothAction
+          actionName: lightLevel          # carry it into the dark
+          initiation: !type:OnLightLevelInitiation
+          results: [ !type:DebugAnnounceResult ]
+
+        # ---------------- External ----------------
+        - !type:QlippothAction
+          actionName: action              # press the Seek button while holding it
+          initiation: !type:OnActionInitiation
+            key: seek
+          results: [ !type:DebugAnnounceResult ]
+        - !type:QlippothAction
+          actionName: usedOn              # hold it and click another entity
+          initiation: !type:OnUsedOnInitiation
+          results: [ !type:DebugAnnounceResult ]
+        - !type:QlippothAction
+          actionName: activate            # E / activate it on the floor
+          initiation: !type:OnActivateInitiation
+          results: [ !type:DebugAnnounceResult ]
+        - !type:QlippothAction
+          actionName: interactHand        # empty-hand click
+          initiation: !type:OnInteractHandInitiation
+          results: [ !type:DebugAnnounceResult ]
+        - !type:QlippothAction
+          actionName: useInHand           # Z while holding it
+          initiation: !type:OnUseInHandInitiation
+          results: [ !type:DebugAnnounceResult ]
+        - !type:QlippothAction
+          actionName: interactUsing       # click it with an item
+          initiation: !type:OnInteractUsingInitiation
+          results: [ !type:DebugAnnounceResult ]
+        - !type:QlippothAction
+          actionName: attacked            # hit it
+          initiation: !type:OnAttackedInitiation
+          cooldown: 2
+          results: [ !type:DebugAnnounceResult ]
+        - !type:QlippothAction
+          actionName: thrown
+          initiation: !type:OnThrownInitiation
+          results: [ !type:DebugAnnounceResult ]
+        - !type:QlippothAction
+          actionName: land
+          initiation: !type:OnLandInitiation
+          results: [ !type:DebugAnnounceResult ]
+        - !type:QlippothAction
+          actionName: throwHit            # throw it at someone
+          initiation: !type:OnThrowHitInitiation
+          results: [ !type:DebugAnnounceResult ]
+        - !type:QlippothAction
+          actionName: equipped            # put it in a pocket
+          initiation: !type:OnEquippedInitiation
+          results: [ !type:DebugAnnounceResult ]
+        - !type:QlippothAction
+          actionName: unequipped          # take it out of the pocket
+          initiation: !type:OnUnequippedInitiation
+          results: [ !type:DebugAnnounceResult ]
+        - !type:QlippothAction
+          actionName: heard               # say "idol" near it
+          initiation: !type:OnHeardInitiation
+            keywords: [idol]
+          results: [ !type:DebugAnnounceResult ]
+        - !type:QlippothAction
+          actionName: insertedIntoContainer # put it in a bag / crate
+          initiation: !type:OnInsertedIntoContainerInitiation
+          results: [ !type:DebugAnnounceResult ]
+        - !type:QlippothAction
+          actionName: removedFromContainer
+          initiation: !type:OnRemovedFromContainerInitiation
+          results: [ !type:DebugAnnounceResult ]
+        - !type:QlippothAction
+          actionName: entityInserted      # NOT FIREABLE: the idol has no container of its own
+          initiation: !type:OnEntityInsertedInitiation
+          results: [ !type:DebugAnnounceResult ]
+        - !type:QlippothAction
+          actionName: entityRemoved       # NOT FIREABLE: the idol has no container of its own
+          initiation: !type:OnEntityRemovedInitiation
+          results: [ !type:DebugAnnounceResult ]
+
+        # ---------------- Internal (need a player controlling the idol: admin "control mob") ----------------
+        - !type:QlippothAction
+          actionName: selfAction          # the controlled idol presses its own Seek button
+          initiation: !type:OnSelfActionInitiation
+            key: seek
+          results: [ !type:DebugAnnounceResult ]
+        - !type:QlippothAction
+          actionName: chain               # NOT FIREABLE: no ChainResult here (see ResultShowcaseIdol)
+          initiation: !type:OnChainInitiation
+            key: showcase
+          results: [ !type:DebugAnnounceResult ]
+        - !type:QlippothAction
+          actionName: spoke
+          initiation: !type:OnSpokeInitiation
+          results: [ !type:DebugAnnounceResult ]
+        - !type:QlippothAction
+          actionName: emote
+          initiation: !type:OnEmoteInitiation
+          results: [ !type:DebugAnnounceResult ]
+        - !type:QlippothAction
+          actionName: mindAdded
+          initiation: !type:OnMindAddedInitiation
+          results: [ !type:DebugAnnounceResult ]
+        - !type:QlippothAction
+          actionName: mindRemoved
+          initiation: !type:OnMindRemovedInitiation
+          results: [ !type:DebugAnnounceResult ]
+        - !type:QlippothAction
+          actionName: selfMeleeHit        # NOT FIREABLE: the idol has no melee attack of its own
+          initiation: !type:OnSelfMeleeHitInitiation
+          results: [ !type:DebugAnnounceResult ]
+
+        # ---------------- Timed ----------------
+        - !type:QlippothAction
+          actionName: interval            # every 60 s
+          initiation: !type:IntervalInitiation
+            interval: 60
+          results: [ !type:DebugAnnounceResult ]
+        - !type:QlippothAction
+          actionName: proximity           # every 30 s while someone is within 3 tiles
+          initiation: !type:ProximityInitiation
+            interval: 30
+            range: 3
+          results: [ !type:DebugAnnounceResult ]
+        - !type:QlippothAction
+          actionName: afterDelay          # once, 10 s after spawn
+          initiation: !type:AfterDelayInitiation
+            delay: 10
+          results: [ !type:DebugAnnounceResult ]
+        - !type:QlippothAction
+          actionName: roundTime           # once the round is 60 s old
+          initiation: !type:RoundTimeInitiation
+            atRoundTime: 60
+          results: [ !type:DebugAnnounceResult ]
+        - !type:QlippothAction
+          actionName: whileState          # every 120 s while showcase = on (always)
+          initiation: !type:WhileStateInitiation
+            key: showcase
+            value: "on"
+            interval: 120
+          results: [ !type:DebugAnnounceResult ]
+        - !type:QlippothAction
+          actionName: whilePulled         # every 5 s while pulled
+          initiation: !type:WhilePulledInitiation
+            interval: 5
+          results: [ !type:DebugAnnounceResult ]
+        - !type:QlippothAction
+          actionName: whileInContainer    # every 10 s while in a bag
+          initiation: !type:WhileInContainerInitiation
+            interval: 10
+          results: [ !type:DebugAnnounceResult ]
+
+        # ---------------- Event based ----------------
+        - !type:QlippothAction
+          actionName: gameRuleStarted     # any rule
+          initiation: !type:OnGameRuleStartedInitiation
+          results: [ !type:DebugAnnounceResult ]
+        - !type:QlippothAction
+          actionName: gameRuleEnded       # any rule
+          initiation: !type:OnGameRuleEndedInitiation
+          results: [ !type:DebugAnnounceResult ]
+        - !type:QlippothAction
+          actionName: alertLevel          # any level
+          initiation: !type:OnAlertLevelInitiation
+          results: [ !type:DebugAnnounceResult ]
+        - !type:QlippothAction
+          actionName: researchExperiment  # emitted by a linked chamber's research console
+          initiation: !type:OnResearchExperimentInitiation
+          results: [ !type:DebugAnnounceResult ]
+        - !type:QlippothAction
+          actionName: signal              # ResultShowcaseIdol [18] sends this within 10 tiles
+          initiation: !type:OnSignalInitiation
+            signal: showcase-test
+          results: [ !type:DebugAnnounceResult ]
+        - !type:QlippothAction
+          actionName: arrived             # only when it comes through a gate / capsule (admin-spawn does not count)
+          initiation: !type:OnArrivedInitiation
+          results: [ !type:DebugAnnounceResult ]
+        - !type:QlippothAction
+          actionName: contained
+          initiation: !type:OnContainedInitiation
+          results: [ !type:DebugAnnounceResult ]
+        - !type:QlippothAction
+          actionName: containmentBreached
+          initiation: !type:OnContainmentBreachedInitiation
+          results: [ !type:DebugAnnounceResult ]
+        - !type:QlippothAction
+          actionName: escapedContainment
+          initiation: !type:OnEscapedContainmentInitiation
+          results: [ !type:DebugAnnounceResult ]
+        - !type:QlippothAction
+          actionName: gateCleared
+          initiation: !type:OnGateClearedInitiation
+          results: [ !type:DebugAnnounceResult ]
+        - !type:QlippothAction
+          actionName: anyGateBreached
+          initiation: !type:OnAnyGateBreachedInitiation
+          results: [ !type:DebugAnnounceResult ]
+        - !type:QlippothAction
+          actionName: gateSpawned
+          initiation: !type:OnGateSpawnedInitiation
+          results: [ !type:DebugAnnounceResult ]
+        - !type:QlippothAction
+          actionName: shuttleCalled       # called or recalled
+          initiation: !type:OnShuttleCalledInitiation
+            called: null
+          results: [ !type:DebugAnnounceResult ]
+        - !type:QlippothAction
+          actionName: roundEnd
+          initiation: !type:OnRoundEndInitiation
+          results: [ !type:DebugAnnounceResult ]
+
+        # ---------------- Interface ----------------
+        - !type:QlippothAction
+          actionName: verb                # right-click -> Qlippoth -> Test initiation
+          initiation: !type:VerbInitiation
+            key: showcase
+            text: "Test VerbInitiation"
+          results: [ !type:DebugAnnounceResult ]
+        - !type:QlippothAction
+          actionName: examined            # shift-click
+          initiation: !type:OnExaminedInitiation
+          results: [ !type:DebugAnnounceResult ]
 
 
-# PLACEHOLDER MOB INSTANCES #
+#region specific examples
+# ============================================================================================
+# SHARED BUILDING BLOCK EXAMPLES - DO NOT DELETE
+# The three entities below are the reference examples linked from the <summary> docs of
+# QlippothTargetFilter / QlippothTargeting / QlippothDestination in Content.Server/Qlippoth/Actions/QlippothAction.cs.
+# They are admin-spawn only (gatePhases: []) and exist so a developer can read one working copy of every
+# field of these blocks. Keep them compiling against the C# even if you never spawn them.
+# ============================================================================================
+
+# --- QlippothTargetFilter usage example (filter: / usedFilter: / userFilter: / speakerFilter:) ---
+# Filter answers "does this entity count?". Empty filter = everything counts.
+- type: entity
+  id: QlippothExampleFilter
+  parent: QlippothLargeBase
+  name: example - the sieve # works completely fine
+  description: A reference Qlippoth. It only notices certain people. DO NOT DELETE, see QlippothAction.cs.
+  components:
+    - type: Qlippoth
+      gatePhases: []   # admin-spawn only
+    - type: QlippothMovement
+      movementType: Inanimate
+    - type: QlippothActions
+      actions:
+        # USAGE EXAMPLE (filter on an aura): only living, player-controlled crew that are not other Qlippoths react.
+        # excludeHolder is meaningless here (a Large object is never held) and is only shown for completeness.
+        - !type:QlippothAction
+          actionName: exampleFilterAura
+          initiation: !type:ProximityInitiation
+            interval: 2
+            range: 5
+            requiredComponent: MobState        # coarse pre-filter by component name
+            filter:                            # <-- QlippothTargetFilter
+              onlyAlive: true
+              onlyPlayers: true
+              excludeQlippoths: true
+              excludeOffspring: true
+              excludeHolder: true
+          results:
+            - !type:DebugAnnounceResult
+              note: "(proximity test)"
+            - !type:ToggleGlowResult           # pulses once per tick: visible proof the filtered aura is running
+              color: "#40FF80"
+              radius: 5
+        # USAGE EXAMPLE (two filters on one initiation): the item used on it AND the user are filtered separately.
+        # whitelist/blacklist are SS14 EntityWhitelist: tags, components, sizes, requireAll.
+        - !type:QlippothAction
+          actionName: exampleFilterFeed
+          initiation: !type:OnInteractUsingInitiation
+            usedFilter:                        # <-- QlippothTargetFilter on the item
+              whitelist: { tags: [Meat] }
+              forbiddenComponents: [Qlippoth]  # never eat another Qlippoth
+            userFilter:                        # <-- QlippothTargetFilter on the player
+              onlyPlayers: true
+              onlyAlive: true
+            consumeUsed: true
+          results:
+            - !type:DebugTraceResult           # popup: which initiation fired
+            - !type:TestSoundResult
+            - !type:SayActorNameResult         # says the name of the player who fed it
+            - !type:PopupResult
+              message: "The sieve accepts the offering."
+              recipient: Actor
+        # USAGE EXAMPLE (filter on a collision): mobs only, skip other Qlippoths and its own spawned servants, skip dead bodies.
+        - !type:QlippothAction
+          actionName: exampleFilterBump
+          initiation: !type:OnCollideInitiation
+            filter:                            # <-- QlippothTargetFilter
+              requiredComponents: [MobState, Transform]
+              blacklist: { components: [Qlippoth] }
+              excludeOffspring: true
+              onlyAlive: true
+          cooldown: 2
+          results:
+            - !type:DebugTraceResult
+            - !type:MindMessageResult          # only the mob that bumped into it reads this
+              message: "The sieve felt you."
+            - !type:PopupResult
+              message: "The sieve shudders as {$target} touches it."
+              recipient: Everyone
+        # USAGE EXAMPLE (filter as a mid-chain gate): RequireTargetResult stops the chain unless the target passes.
+        - !type:QlippothAction
+          actionName: exampleFilterGate
+          initiation: !type:OnPullInitiation
+          results:
+            - !type:DebugTraceResult           # fires before the gate: proves the initiation was reached
+            - !type:RequireTargetResult
+              filter: { anchored: false, minDamage: 10 }   # <-- QlippothTargetFilter: only already-hurt pullers
+            - !type:TestSoundResult            # everything below here only runs when the gate passes
+            - !type:SayActorNameResult
+              format: "{name} is already bleeding."
+            - !type:MindMessageResult
+              message: "The sieve tastes your wounds."
+
+# --- QlippothTargeting usage example (targeting: on results) ---
+# Targeting answers "who does this result act on?". Default mode Target = whoever the initiation handed over.
+- type: entity
+  id: QlippothExampleTargeting
+  parent: QlippothLargeBase
+  name: example - the chooser
+  description: A reference Qlippoth. Every verb on it aims a different way. DO NOT DELETE, see QlippothAction.cs.
+  components:
+    - type: Qlippoth
+      gatePhases: []   # admin-spawn only
+    - type: QlippothMovement
+      movementType: Inanimate
+    - type: PointLight
+      radius: 3
+      energy: 1
+      color: "#40C0FF"
+    - type: QlippothActions
+      actions:
+        # USAGE EXAMPLE (mode Target, the default): no targeting written -> acts on the player who clicked the verb.
+        - !type:QlippothAction
+          actionName: exampleTargetDefault
+          initiation: !type:VerbInitiation
+            key: touch
+            text: "Touch (Target)"
+          results:
+            # Default targeting (mode Target) = whoever the initiation handed over, here the player who clicked:
+            # only they get the private line, and the jitter is applied to them and nobody else.
+            - !type:WhisperToResult
+              message: "It touched you back."
+            - !type:JitterResult
+              duration: 2
+        # USAGE EXAMPLE (mode Self): the Qlippoth acts on itself.
+        - !type:QlippothAction
+          actionName: exampleTargetSelf
+          initiation: !type:VerbInitiation
+            key: glow
+            text: "Glow (Self)"
+          results:
+            - !type:SetLightResult
+              targeting: { mode: Self }        # <-- QlippothTargeting
+              color: "#FF4040"
+              radius: 5
+        # USAGE EXAMPLE (mode InRange + range + maxTargets + filter): at most 2 living mobs within 3 tiles.
+        - !type:QlippothAction
+          actionName: exampleTargetInRange
+          initiation: !type:VerbInitiation
+            key: pulse
+            text: "Pulse (InRange)"
+          cooldown: 3
+          results:
+            - !type:DamageResult
+              damage: { types: { Heat: 3 } }
+              targeting:                       # <-- QlippothTargeting
+                mode: InRange
+                range: 3
+                maxTargets: 2
+                filter: { onlyAlive: true }
+        # USAGE EXAMPLE (mode AroundTarget): flash everyone within 2 tiles of the clicker, not of the Qlippoth.
+        - !type:QlippothAction
+          actionName: exampleTargetAroundTarget
+          initiation: !type:VerbInitiation
+            key: flashAround
+            text: "Flash around you (AroundTarget)"
+          cooldown: 3
+          results:
+            - !type:FlashResult
+              duration: 2
+              targeting: { mode: AroundTarget, range: 2, includeSelf: false }   # <-- QlippothTargeting
+        # USAGE EXAMPLE (mode NearestInRange): whisper only to the closest player.
+        - !type:QlippothAction
+          actionName: exampleTargetNearest
+          initiation: !type:IntervalInitiation
+            interval: 15
+          results:
+            - !type:WhisperToResult
+              message: "You are the closest."
+              targeting: { mode: NearestInRange, range: 8, filter: { onlyPlayers: true } }   # <-- QlippothTargeting
+        # USAGE EXAMPLE (mode RandomInRange): one random mob within 5 tiles shakes.
+        - !type:QlippothAction
+          actionName: exampleTargetRandom
+          initiation: !type:VerbInitiation
+            key: shake
+            text: "Shake someone (RandomInRange)"
+          results:
+            - !type:JitterResult
+              duration: 3
+              targeting: { mode: RandomInRange, range: 5, filter: { onlyMobs: true } }   # <-- QlippothTargeting
+        # USAGE EXAMPLE (mode Actor vs PullPartner): when pulled, stun the puller (Actor), make whoever is attached
+        # let go (PullPartner), then throw the puller away.
+        # NOTE: the release step is required, not decoration. A pull creates a distance joint between the two
+        # entities, so a throw while the pull is still active is clamped back and looks like it did nothing.
+        - !type:QlippothAction
+          actionName: exampleTargetPull
+          initiation: !type:OnPullInitiation
+          cooldown: 5
+          results:
+            - !type:StunResult
+              duration: 1
+              targeting: { mode: Actor }       # <-- QlippothTargeting: read from the event args
+            - !type:PullResult                 # let go of the Qlippoth, breaking the joint
+              release: true
+              puller: { mode: PullPartner }    # <-- QlippothTargeting: read from the components, not the event
+              targeting: { mode: Self }
+            - !type:ThrowResult
+              mode: AwayFromSelf
+              distance: 2
+              targeting: { mode: Actor }
+        # USAGE EXAMPLE (mode Offspring): spawn servants, then a second verb culls exactly those servants.
+        - !type:QlippothAction
+          actionName: exampleTargetSpawn
+          initiation: !type:VerbInitiation
+            key: spawn
+            text: "Call rats"
+          results:
+            - !type:SpawnMobResult
+              spawnMob: MobRatServant
+              count: 2
+              maxAlive: 4
+              ghostRole: false
+        - !type:QlippothAction
+          actionName: exampleTargetOffspring
+          initiation: !type:VerbInitiation
+            key: cull
+            text: "Dismiss rats (Offspring)"
+          results:
+            - !type:DeleteResult
+              targeting: { mode: Offspring }   # <-- QlippothTargeting
+        # USAGE EXAMPLE (mode QlippothsInRange): make every other Qlippoth within 8 tiles speak.
+        - !type:QlippothAction
+          actionName: exampleTargetQlippoths
+          initiation: !type:VerbInitiation
+            key: chorus
+            text: "Chorus (QlippothsInRange)"
+          results:
+            - !type:SpeakResult
+              message: "..."
+              emote: true
+              targeting: { mode: QlippothsInRange, range: 8 }   # <-- QlippothTargeting
+        # NOTE: mode Holder only resolves on hand-held / worn Qlippoths (QlippothItemBase / QlippothClothingBase). Not shown here.
+
+# --- QlippothDestination usage example (destination: on teleport / spawn results) ---
+# Destination answers "where?". Often combined with targeting: targeting picks WHO moves, destination picks WHERE.
+- type: entity
+  id: QlippothExampleDestination
+  parent: QlippothLargeBase
+  name: example - the doorway
+  description: A reference Qlippoth. It moves things to places. DO NOT DELETE, see QlippothAction.cs.
+  components:
+    - type: Qlippoth
+      gatePhases: []   # admin-spawn only
+    - type: QlippothMovement
+      movementType: Inanimate
+    - type: QlippothActions
+      actions:
+        # USAGE EXAMPLE (mode RandomNearSelf + range): the Qlippoth blinks up to 5 tiles away.
+        - !type:QlippothAction
+          actionName: exampleDestinationBlink
+          initiation: !type:VerbInitiation
+            key: blink
+            text: "Blink (RandomNearSelf)"
+          cooldown: 2
+          results:
+            - !type:TeleportResult
+              targeting: { mode: Self }
+              destination: { mode: RandomNearSelf, range: 5 }   # <-- QlippothDestination
+              effect: EffectVoidBlink
+        # USAGE EXAMPLE (mode RandomOnStation): the clicker is sent somewhere random on the station.
+        - !type:QlippothAction
+          actionName: exampleDestinationBanish
+          initiation: !type:VerbInitiation
+            key: banish
+            text: "Banish me (RandomOnStation)"
+          cooldown: 5
+          results:
+            - !type:TeleportResult
+              targeting: { mode: Target }
+              destination: { mode: RandomOnStation }           # <-- QlippothDestination
+              scatter: 0
+              effect: EffectVoidBlink
+        # USAGE EXAMPLE (mode Target + scatter on a spawn): rats appear around the clicker, not around the Qlippoth.
+        - !type:QlippothAction
+          actionName: exampleDestinationSummon
+          initiation: !type:VerbInitiation
+            key: summon
+            text: "Summon at me (Target)"
+          results:
+            - !type:SpawnMobResult
+              spawnMob: MobRatServant
+              count: 2
+              scatter: 1
+              destination: { mode: Target }                    # <-- QlippothDestination
+              ghostRole: false
+              maxAlive: 4
+        # USAGE EXAMPLE (mode Offset): a fixed offset in tiles from the Qlippoth; offset is also ADDED to every other mode.
+        - !type:QlippothAction
+          actionName: exampleDestinationOffset
+          initiation: !type:VerbInitiation
+            key: mark
+            text: "Leave a mark (Offset)"
+          results:
+            - !type:SpawnItemResult
+              spawnItem: SheetSteel1
+              destination: { mode: Offset, offset: "0, 1" }    # <-- QlippothDestination (Vector2 must be quoted inside { })
+        # USAGE EXAMPLE (mode NearestWithComponent + component): jump next to the closest Q-Gate on the map. Fails (chain stops) if there is none.
+        - !type:QlippothAction
+          actionName: exampleDestinationGate
+          initiation: !type:VerbInitiation
+            key: toGate
+            text: "Go to the gate (NearestWithComponent)"
+          results:
+            - !type:TeleportResult
+              targeting: { mode: Self }
+              destination: { mode: NearestWithComponent, component: QGate }   # <-- QlippothDestination
+            - !type:PopupResult
+              message: "The doorway is gone."
+              recipient: Actor
+        # USAGE EXAMPLE (mode RandomOnGrid on a trigger): when hurt it relocates anywhere on its own grid.
+        - !type:QlippothAction
+          actionName: exampleDestinationFlee
+          initiation: !type:OnDamagedInitiation
+            minDelta: 5
+          cooldown: 10
+          results:
+            - !type:DebugAnnounceResult
+              note: "(proximity test)"
+            - !type:TeleportResult
+              targeting: { mode: Self }
+              destination: { mode: RandomOnGrid }              # <-- QlippothDestination
+        # USAGE EXAMPLE (targeting + destination together): every player within 6 tiles is dragged onto the tile of the Qlippoth.
+        - !type:QlippothAction
+          actionName: exampleDestinationDragIn
+          initiation: !type:VerbInitiation
+            key: dragIn
+            text: "Drag everyone in (Self)"
+          cooldown: 10
+          results:
+            - !type:TeleportResult
+              targeting: { mode: InRange, range: 6, filter: { onlyPlayers: true } }
+              destination: { mode: Self }                      # <-- QlippothDestination
+              scatter: 1
+#endregion
+
+
+
+
+
+#endregion
+
+#region old phase mobs
+# I dont even know what these are tbh - electro
 # Old test mobs. Phase 1-3 ones have spawnWeight 0: they stay defined for admin spawning but never come through a gate
 # (the item Qlippoths below cover those phases). Phase 4-5 ones are the only candidates for their phases, so they stay active.
 - type: entity
@@ -313,7 +1657,13 @@
       gatePhases: [Phase1Rift]
       spawnWeight: 0
       marketPrice: 500
-      researchPoints: 50
+      researchGearPrototype: QlippothQGearResonanceProbe
+      researchCheckpoints:
+        - !type:QlippothResearchNode
+          id: lantern-response
+          name: qlippoth-checkpoint-lantern
+          description: qlippoth-checkpoint-lantern-desc
+          activities: [ResonanceScan, ControlledTest]
     - type: MobThresholds
       thresholds:
         0: Alive
@@ -333,7 +1683,13 @@
       gatePhases: [Phase2Verge]
       spawnWeight: 0
       marketPrice: 1000
-      researchPoints: 100
+      researchGearPrototype: QlippothQGearInversionTongs
+      researchCheckpoints:
+        - !type:QlippothResearchNode
+          id: edge-stance
+          name: qlippoth-checkpoint-edge
+          description: qlippoth-checkpoint-edge-desc
+          activities: [Observation, ControlledTest]
       dungeon: !type:ArenaDungeon
         width: 24
         height: 18
@@ -356,7 +1712,14 @@
       gatePhases: [Phase3Eclipse]
       spawnWeight: 0
       marketPrice: 2000
-      researchPoints: 150
+      researchGearPrototype: QlippothQGearBoundaryAnchor
+      researchCheckpoints:
+        - !type:QlippothResearchNode
+          id: threshold-memory
+          name: qlippoth-checkpoint-threshold
+          description: qlippoth-checkpoint-threshold-desc
+          activities: [ResonanceScan, ContainmentDiagnostics]
+          requiredEvidenceTypes: [ChamberDiagnostics]
       dungeon: !type:ArenaDungeon
         width: 28
         height: 21
@@ -380,6 +1743,15 @@
             - !type:DamageSanityResult
               amount: 6
               scaled: true
+        # This is the partial bridge between research experiments and ordinary Qlippoth actions:
+        # a controlled test can provoke this specimen and its result advances that specimen's node.
+        - !type:QlippothAction
+          actionName: researchResponse
+          initiation: !type:OnResearchExperimentInitiation
+            activity: ControlledTest
+          results:
+            - !type:AdvanceQlippothResearchResult
+              amount: 1
 
 - type: entity
   id: MobQlippothPhase4
@@ -390,7 +1762,15 @@
     - type: Qlippoth
       gatePhases: [Phase4Abyss]
       marketPrice: 4000
-      researchPoints: 200
+      researchGearPrototype: QlippothQGearGateCompass
+      researchCheckpoints:
+        - !type:QlippothResearchNode
+          id: abyssal-field
+          name: qlippoth-checkpoint-abyss
+          description: qlippoth-checkpoint-abyss-desc
+          activities: [Observation, ResonanceScan, ContainmentDiagnostics, ControlledTest]
+          requiredEvidenceTypes: [GateDataExtracted, CorruptionApplied, CorruptionPulse, CorruptionSpread, CorruptionTreated]
+          requiresHighTierEvidence: true
       dungeon: !type:ArenaDungeon
         width: 32
         height: 24
@@ -420,29 +1800,44 @@
           initiation: !type:ProximityInitiation
             interval: 1
             range: 5
+            filter: { onlyPlayers: true, onlyAlive: true, outsideIntactContainment: true }
           results:
             - !type:ApplyCorruptionResult
               chance: 0.08
-              duration: 60
-              severity: 1
-              sanityDrainPerSecond: 2
-              pulseInterval: 10
-              spreadChance: 0.15
-              spreadRadius: 5
+              duration: 90
+              severity: 2
+              sanityDrainPerSecond: 2.5
+              pulseInterval: 8
+              spreadChance: 0.2
+              spreadRadius: 5.5
         - !type:QlippothAction
           actionName: corruptionTouch # fired once per crew member this Qlippoth corrupts
           initiation: !type:OnCorruptionAppliedInitiation
           results:
             - !type:SpawnEffectResult
               prototype: EffectVoidBlink
-            - !type:PopupResult
-              message: qlippoth-corruption-applied
         - !type:QlippothAction
           actionName: corruptionPulse # fired every qlippoth.corruption_pulse_interval seconds per corrupted crew member
           initiation: !type:OnCorruptionPulseInitiation
           results:
             - !type:SpawnEffectResult
               prototype: EffectVoidBlink
+        - !type:QlippothAction
+          actionName: containmentBreachCorruption
+          initiation: !type:OnContainmentBreachedInitiation
+          results:
+            - !type:ApplyCorruptionResult
+              duration: 45
+              severity: 2
+              sanityDrainPerSecond: 2
+              pulseInterval: 10
+              spreadChance: 0.1
+              spreadRadius: 4
+              targeting:
+                mode: InRange
+                range: 6
+                maxTargets: 3
+                filter: { onlyPlayers: true, onlyAlive: true, outsideIntactContainment: true }
 
 - type: entity
   id: MobQlippothPhase5
@@ -453,7 +1848,15 @@
     - type: Qlippoth
       gatePhases: [Phase5Horizon]
       marketPrice: 8000
-      researchPoints: 250
+      researchGearPrototype: QlippothQGearHorizonLens
+      researchCheckpoints:
+        - !type:QlippothResearchNode
+          id: horizon-boundary
+          name: qlippoth-checkpoint-horizon
+          description: qlippoth-checkpoint-horizon-desc
+          activities: [Observation, ResonanceScan, ContainmentDiagnostics]
+          requiredEvidenceTypes: [GateDataExtracted, CorruptionApplied, CorruptionPulse, CorruptionSpread, CorruptionTreated]
+          requiresHighTierEvidence: true
       dungeon: !type:ArenaDungeon
         width: 36
         height: 27
@@ -483,23 +1886,22 @@
           initiation: !type:ProximityInitiation
             interval: 1
             range: 5
+            filter: { onlyPlayers: true, onlyAlive: true, outsideIntactContainment: true }
           results:
             - !type:ApplyCorruptionResult
               chance: 0.1
-              duration: 60
-              severity: 2
-              sanityDrainPerSecond: 2
-              pulseInterval: 10
-              spreadChance: 0.15
-              spreadRadius: 5
+              duration: 120
+              severity: 3
+              sanityDrainPerSecond: 3
+              pulseInterval: 6
+              spreadChance: 0.25
+              spreadRadius: 6
         - !type:QlippothAction
           actionName: corruptionTouch
           initiation: !type:OnCorruptionAppliedInitiation
           results:
             - !type:SpawnEffectResult
               prototype: EffectVoidBlink
-            - !type:PopupResult
-              message: qlippoth-corruption-applied
         - !type:QlippothAction
           actionName: corruptionPulse
           initiation: !type:OnCorruptionPulseInitiation
@@ -508,47 +1910,26 @@
               prototype: EffectVoidBlink
             - !type:DamageSanityResult # on top of the passive drain the corruption itself applies
               amount: 5
-
-# Controlled mob for testing phase, presence, movement, sanity and action systems together.
-- type: entity
-  id: MobQlippothTest
-  parent: QlippothMobBase
-  name: Test Qlippoth - King in Yellow
-  description: A controlled Qlippoth used to test phase, movement, presence, sanity and action systems.
-  components:
-    - type: Qlippoth
-      gatePhases: []   # admin-spawn only
-      marketPrice: 2000
-      researchPoints: 150
-    - type: QlippothPresence
-      presenceType: Object
-      objectSize: Large
-    - type: QlippothMovement
-      movementType: Animated
-    - type: QlippothActions
-      actions:
         - !type:QlippothAction
-          actionName: sanityAura
-          initiation: !type:ProximityInitiation
-            interval: 1
-            range: 8
+          actionName: containmentBreachCorruption
+          initiation: !type:OnContainmentBreachedInitiation
           results:
-            - !type:DamageSanityResult
-              amount: 6
-              scaled: true
-        - !type:QlippothAction
-          actionName: testPullResponse
-          initiation: !type:OnPullInitiation
-          results:
-            - !type:PlaySoundResult
-              soundPath: /Audio/Qlippoth/qlippoth.ogg
-              volume: 3
-    - type: PointLight
-      radius: 5
-      energy: 4
-      color: "#FFD54A"
+            - !type:ApplyCorruptionResult
+              duration: 60
+              severity: 3
+              sanityDrainPerSecond: 3
+              pulseInterval: 8
+              spreadChance: 0.15
+              spreadRadius: 5
+              targeting:
+                mode: InRange
+                range: 8
+                maxTargets: 5
+                filter: { onlyPlayers: true, onlyAlive: true, outsideIntactContainment: true }
+#endregion
 
-
+#region Game Ready Qlippoths
+#region itemQlippoths
 # ITEM INSTANCES #
 # Concrete, test-scale hand-held Qlippoths. Resolution / domain / aspect logic comes later.
 - type: entity
@@ -560,7 +1941,13 @@
     - type: Qlippoth
       gatePhases: [Phase1Rift]
       marketPrice: 500
-      researchPoints: 50
+      researchGearPrototype: QlippothQGearResonanceProbe
+      researchCheckpoints:
+        - !type:QlippothResearchNode
+          id: lantern-response
+          name: qlippoth-checkpoint-lantern
+          description: qlippoth-checkpoint-lantern-desc
+          activities: [ResonanceScan, ControlledTest]
       dungeon: !type:ArenaDungeon
         width: 20
         height: 15
@@ -606,8 +1993,8 @@
               noTargetMessage: qlippoth-gaze-no-target
             - !type:PlaySoundResult
               soundPath: /Audio/Qlippoth/qlippoth.ogg
-            - !type:DamageSanityResult   # target = the holder
-              amount: 5
+            # - !type:DamageSanityResult   # target = the holder
+            #   amount: 5
     - type: Transform
       noRot: true # keep the arrow overlay readable, same as the stock pinpointer
     - type: Sprite
@@ -663,7 +2050,13 @@
     - type: Qlippoth
       gatePhases: [Phase2Verge]
       marketPrice: 1000
-      researchPoints: 100
+      researchGearPrototype: QlippothQGearInversionTongs
+      researchCheckpoints:
+        - !type:QlippothResearchNode
+          id: edge-stance
+          name: qlippoth-checkpoint-edge
+          description: qlippoth-checkpoint-edge-desc
+          activities: [Observation, ControlledTest]
       dungeon: !type:ArenaDungeon
         width: 24
         height: 18
@@ -767,7 +2160,13 @@
     - type: Qlippoth
       gatePhases: [Phase3Eclipse]
       marketPrice: 2000
-      researchPoints: 150
+      researchGearPrototype: QlippothQGearGateCompass
+      researchCheckpoints:
+        - !type:QlippothResearchNode
+          id: threshold-memory
+          name: qlippoth-checkpoint-threshold
+          description: qlippoth-checkpoint-threshold-desc
+          activities: [ResonanceScan, ContainmentDiagnostics]
       dungeon: !type:ArenaDungeon
         width: 28
         height: 21
@@ -832,3 +2231,6 @@
       radius: 2
       energy: 1
       color: "#B08CFF"
+#endregion
+
+#endregion

@@ -1,11 +1,17 @@
 using System.Linq;
 using System.Numerics;
+using Content.Server.Atmos.EntitySystems;
 using Content.Server.Chat.Systems;
 using Content.Server.Popups;
+using Content.Shared.Atmos;
 using Content.Shared.CCVar;
+using Content.Shared.Gravity;
 using Content.Shared.DoAfter;
 using Content.Shared.Eye;
 using Content.Shared.Interaction;
+using Content.Shared.Mobs.Components;
+using Content.Shared.Mobs.Systems;
+using Content.Shared.Movement.Pulling.Components;
 using Content.Shared.Maps;
 using Content.Shared.Qlippoth;
 using Content.Shared.Qlippoth.Components;
@@ -15,6 +21,7 @@ using Robust.Shared.Audio.Systems;
 using Robust.Shared.Configuration;
 using Robust.Shared.Map;
 using Robust.Shared.Map.Components;
+using Robust.Shared.Physics.Components;
 using Robust.Shared.Player;
 using Robust.Shared.Prototypes;
 using Robust.Shared.Random;
@@ -48,6 +55,10 @@ public sealed partial class QGateSystem : EntitySystem
     [Dependency] private SharedDoAfterSystem _doAfter = default!;
     [Dependency] private PopupSystem _popup = default!;
     [Dependency] private SharedAudioSystem _audio = default!;
+    [Dependency] private QlippothActionInitiationSystem _initiation = default!;
+    [Dependency] private QlippothResearchConsoleSystem _research = default!;
+    [Dependency] private AtmosphereSystem _atmosphere = default!;
+    [Dependency] private MobStateSystem _mobState = default!;
 
     private readonly Dictionary<EntityUid, RiftDungeon> _dungeonsByGate = new();
     private readonly Dictionary<EntityUid, EntityUid> _returnPortalsByGate = new();
@@ -73,6 +84,7 @@ public sealed partial class QGateSystem : EntitySystem
 
     private void OnMapInit(EntityUid uid, QGateComponent component, MapInitEvent args)
     {
+        _initiation.DispatchAll<OnGateSpawnedInitiation>(new QlippothTargetEventArgs(uid));
         var xform = Transform(uid);
         if (_containmentDim.IsContainmentDimension(xform.MapID))
         {
@@ -172,40 +184,132 @@ public sealed partial class QGateSystem : EntitySystem
         if (activeGates >= Math.Max(1, _cfg.GetCVar(CCVars.QlippothMaxActiveGates)))
             return;
 
-        var stationCandidates = new List<MapCoordinates>();
+        // Collect player positions on all grids to prevent spawning directly on players' feet
+        var playerPositionsByGrid = new Dictionary<EntityUid, List<Vector2>>();
         var actors = EntityQueryEnumerator<ActorComponent, TransformComponent>();
-        while (actors.MoveNext(out _, out _, out var xform))
+        while (actors.MoveNext(out _, out _, out var actorXform))
         {
-            if (xform.MapID == MapId.Nullspace || _containmentDim.IsContainmentDimension(xform.MapID))
-                continue;
-
-            stationCandidates.Add(_transform.GetMapCoordinates(xform.Owner));
+            if (actorXform.GridUid is { } gUid && actorXform.MapID != MapId.Nullspace &&
+                !_containmentDim.IsContainmentDimension(actorXform.MapID))
+            {
+                if (!playerPositionsByGrid.TryGetValue(gUid, out var list))
+                    playerPositionsByGrid[gUid] = list = new List<Vector2>();
+                list.Add(actorXform.Coordinates.Position);
+            }
         }
 
-        var deepSpaceCandidates = new List<MapCoordinates>();
-        foreach (var mapId in _mapManager.GetAllMapIds())
+        // Collect valid station / space grids outside the containment dimension
+        var candidateGrids = new List<Entity<MapGridComponent>>();
+        var gridQuery = EntityQueryEnumerator<MapGridComponent, TransformComponent>();
+        while (gridQuery.MoveNext(out var gridUid, out var gridComp, out var gridXform))
         {
-            if (_containmentDim.IsContainmentDimension(mapId))
+            if (gridXform.MapID == MapId.Nullspace || _containmentDim.IsContainmentDimension(gridXform.MapID))
                 continue;
 
-            foreach (var grid in _mapManager.GetAllGrids(mapId))
-                deepSpaceCandidates.Add(_transform.GetMapCoordinates(grid.Owner));
+            candidateGrids.Add((gridUid, gridComp));
         }
 
-        if (stationCandidates.Count == 0 && deepSpaceCandidates.Count == 0)
+        if (candidateGrids.Count == 0)
+            return;
+
+        // Prefer grids that have active players / activity, but fall back to any available grid
+        var populatedGrids = candidateGrids.Where(g => playerPositionsByGrid.ContainsKey(g.Owner)).ToList();
+        var preferredPool = populatedGrids.Count > 0 && _random.Prob(0.85f) ? populatedGrids : candidateGrids;
+        _random.Shuffle(preferredPool);
+
+        EntityCoordinates? spawnCoords = null;
+        var chosenGridUid = EntityUid.Invalid;
+
+        foreach (var (gridUid, gridComp) in preferredPool)
+        {
+            playerPositionsByGrid.TryGetValue(gridUid, out var playerPositions);
+            spawnCoords = FindOpenTileOnGrid(gridUid, gridComp, playerPositions);
+            if (spawnCoords != null)
+            {
+                chosenGridUid = gridUid;
+                break;
+            }
+        }
+
+        if (spawnCoords == null)
             return;
 
         var phase = RollAutomaticPhase();
-        var preferStation = stationCandidates.Count > 0 && _random.Prob(0.75f);
-        var candidates = preferStation || deepSpaceCandidates.Count == 0
-            ? stationCandidates
-            : deepSpaceCandidates;
-        var gate = Spawn(GetGatePrototype(phase), _random.Pick(candidates));
+        var gate = Spawn(GetGatePrototype(phase), spawnCoords.Value);
+        _transform.SetLocalRotation(gate, Angle.Zero);
+
         if (TryComp<QGateComponent>(gate, out var qgate))
         {
-            qgate.LocationName = preferStation ? "Station Grid" : "Deep Space Sector";
+            var isStation = playerPositionsByGrid.ContainsKey(chosenGridUid);
+            qgate.LocationName = isStation ? "Station Sector" : "Deep Space Grid";
             Dirty(gate, qgate);
         }
+    }
+
+    private EntityCoordinates? FindOpenTileOnGrid(EntityUid gridUid, MapGridComponent grid, List<Vector2>? playerPositions)
+    {
+        var tiles = _maps.GetAllTiles(gridUid, grid).Where(t => !t.Tile.IsEmpty).ToList();
+        if (tiles.Count == 0)
+            return null;
+
+        const float minPlayerDist = 6f; // Never spawn on top of or immediately next to players
+        _random.Shuffle(tiles);
+
+        foreach (var tile in tiles.Take(100))
+        {
+            var centerCoords = _maps.GridTileToLocal(gridUid, grid, tile.GridIndices).Offset(new Vector2(0.5f, 0.5f));
+
+            // Don't spawn inside solid walls or blocking machinery
+            var blocked = false;
+            var anchored = _maps.GetAnchoredEntitiesEnumerator(gridUid, grid, tile.GridIndices);
+            while (anchored.MoveNext(out var ancUid))
+            {
+                if (TryComp<PhysicsComponent>(ancUid, out var phys) && phys.CanCollide && phys.Hard)
+                {
+                    blocked = true;
+                    break;
+                }
+            }
+            if (blocked)
+                continue;
+
+            // Ensure safe distance from players
+            if (playerPositions is { Count: > 0 })
+            {
+                var tooClose = false;
+                foreach (var pos in playerPositions)
+                {
+                    if (Vector2.Distance(centerCoords.Position, pos) < minPlayerDist)
+                    {
+                        tooClose = true;
+                        break;
+                    }
+                }
+                if (tooClose)
+                    continue;
+            }
+
+            return centerCoords;
+        }
+
+        // Fallback: pick any non-blocked tile on the grid
+        foreach (var tile in tiles.Take(50))
+        {
+            var anchored = _maps.GetAnchoredEntitiesEnumerator(gridUid, grid, tile.GridIndices);
+            var blocked = false;
+            while (anchored.MoveNext(out var ancUid))
+            {
+                if (TryComp<PhysicsComponent>(ancUid, out var phys) && phys.CanCollide && phys.Hard)
+                {
+                    blocked = true;
+                    break;
+                }
+            }
+            if (!blocked)
+                return _maps.GridTileToLocal(gridUid, grid, tile.GridIndices).Offset(new Vector2(0.5f, 0.5f));
+        }
+
+        return null;
     }
 
     private QGatePhase RollAutomaticPhase()
@@ -281,7 +385,7 @@ public sealed partial class QGateSystem : EntitySystem
         var gateQuery = EntityQueryEnumerator<QGateComponent>();
         while (gateQuery.MoveNext(out _, out var gate))
         {
-            if (!gate.IsBreached && !gate.IsCleared)
+            if (!gate.IsBreached)
                 gates.Add(gate);
         }
 
@@ -301,9 +405,12 @@ public sealed partial class QGateSystem : EntitySystem
             }
 
             var gate = gates[0];
-            var eta = gate.RiftOpened
-                ? 0
-                : Math.Max(0, (int)(gate.SpawnedAt + gate.ArrivalEta - curTime).TotalSeconds);
+            var deadline = gate.IsCleared
+                ? gate.PortalCloseAt
+                : gate.RiftOpened
+                    ? gate.RiftOpenedAt + gate.Duration
+                    : gate.SpawnedAt + gate.ArrivalEta;
+            var eta = Math.Max(0, (int)Math.Ceiling((deadline - curTime).TotalSeconds));
 
             if (radar.LastTrackedProbability == 0.75f &&
                 radar.PredictedPhase == gate.Phase &&
@@ -321,18 +428,26 @@ public sealed partial class QGateSystem : EntitySystem
     {
         var lines = new List<string>();
         var query = EntityQueryEnumerator<QGateComponent, TransformComponent>();
-        while (query.MoveNext(out _, out var gate, out var xform))
+        while (query.MoveNext(out var uid, out var gate, out _))
         {
-            if (gate.IsBreached || gate.IsCleared)
-                continue;
-
-            var eta = gate.RiftOpened
-                ? "OPEN"
-                : $"{Math.Max(0, (int)(gate.SpawnedAt + gate.ArrivalEta - curTime).TotalSeconds)}s";
-            lines.Add($"- {gate.LocationName} | {GetPhaseName(gate.Phase)} | ETA: {eta} | {xform.Coordinates.Position.X:0.0}, {xform.Coordinates.Position.Y:0.0}");
+            var coordinates = _transform.GetMapCoordinates(uid);
+            var status = gate.IsBreached
+                ? "BREACHED"
+                : gate.IsCleared
+                    ? $"EVACUATION: {FormatCountdown(gate.PortalCloseAt - curTime)}"
+                    : gate.RiftOpened
+                        ? $"RIFT OPEN | BREACH IN: {FormatCountdown(gate.RiftOpenedAt + gate.Duration - curTime)}"
+                        : $"ARRIVAL IN: {FormatCountdown(gate.SpawnedAt + gate.ArrivalEta - curTime)}";
+            lines.Add($"- {gate.LocationName} | {GetPhaseName(gate.Phase)} | {status} | Map {coordinates.MapId}: {coordinates.Position.X:0.0}, {coordinates.Position.Y:0.0}");
         }
 
         return lines.Count == 0 ? "No active Q-Gates detected." : string.Join("\n", lines);
+    }
+
+    private static string FormatCountdown(TimeSpan remaining)
+    {
+        var totalSeconds = Math.Max(0, (int)Math.Ceiling(remaining.TotalSeconds));
+        return $"{totalSeconds / 60:00}:{totalSeconds % 60:00}";
     }
     #endregion
 
@@ -367,7 +482,8 @@ public sealed partial class QGateSystem : EntitySystem
 
     private (RiftDungeon Dungeon, int ObjectiveCount) CreateRiftDungeon(QlippothDungeon definition, EntProtoId? qlippothPrototype, EntityUid gate)
     {
-        var mapId = _mapManager.CreateMap();
+        var mapUid = _maps.CreateMap(out var mapId);
+        ApplyRiftEnvironment(mapUid);
         var gridEntity = _mapManager.CreateGridEntity(mapId);
         var gridUid = gridEntity.Owner;
 
@@ -375,10 +491,33 @@ public sealed partial class QGateSystem : EntitySystem
 
         EntityUid? qlippoth = null;
         if (qlippothPrototype is { } prototype)
+        {
             qlippoth = Spawn(prototype, new EntityCoordinates(gridUid, layout.QlippothSpot));
+            _initiation.Dispatch<OnArrivedInitiation>(qlippoth.Value, new QlippothArrivalEventArgs(gate, QlippothArrivalKind.RiftDungeon));
+        }
 
         var entry = new MapCoordinates(layout.Entry, mapId);
         return (new RiftDungeon(mapId, entry, qlippoth), layout.ObjectiveCount);
+    }
+
+    /// <summary>
+    /// Gives a freshly created rift map breathable air and gravity.
+    /// Without this the map falls back to <see cref="GasMixture.SpaceGas"/> and no gravity, so the crew suffocates
+    /// and floats the moment they step through the gate.
+    /// This is map atmosphere, not a simulated grid atmosphere: one mixture for the whole rift, no pressure or leaks.
+    /// Per-dungeon atmosphere (vacuum rifts, plasma floods) belongs in <see cref="QlippothDungeon"/> later.
+    /// </summary>
+    private void ApplyRiftEnvironment(EntityUid mapUid)
+    {
+        var moles = new float[Atmospherics.AdjustedNumberOfGases];
+        moles[(int) Gas.Oxygen] = 21.824779f;
+        moles[(int) Gas.Nitrogen] = 82.10312f;
+        _atmosphere.SetMapAtmosphere(mapUid, false, new GasMixture(moles, Atmospherics.T20C));
+
+        var gravity = EnsureComp<GravityComponent>(mapUid);
+        gravity.Enabled = true;
+        gravity.Inherent = true;
+        Dirty(mapUid, gravity);
     }
 
     // Helpers QlippothDungeon implementations build with (they are plain data classes and cannot spawn on their own).
@@ -412,13 +551,54 @@ public sealed partial class QGateSystem : EntitySystem
             _mapManager.DeleteMap(dungeon.MapId);
     }
 
-    private void EvacuateDungeon(MapId dungeonMap, MapCoordinates exit)
+    private void EvacuateDungeon(MapId dungeonMap, MapCoordinates entry, MapCoordinates exit, EntityUid? excluded = null)
     {
-        var players = EntityQueryEnumerator<ActorComponent, TransformComponent>();
-        while (players.MoveNext(out var player, out _, out var xform))
+        var evacuees = new HashSet<EntityUid>();
+        var pending = new Queue<EntityUid>();
+
+        var actors = EntityQueryEnumerator<ActorComponent, TransformComponent>();
+        while (actors.MoveNext(out var actor, out _, out var actorXform))
         {
-            if (xform.MapID == dungeonMap)
-                _transform.SetMapCoordinates(player, exit);
+            if (actorXform.MapID == dungeonMap && actor != excluded)
+                AddEvacuee(actor);
+        }
+
+        var corpses = EntityQueryEnumerator<MobStateComponent, TransformComponent>();
+        while (corpses.MoveNext(out var corpse, out var mobState, out var corpseXform))
+        {
+            if (corpseXform.MapID == dungeonMap && corpse != excluded && _mobState.IsDead(corpse, mobState))
+                AddEvacuee(corpse);
+        }
+
+        while (pending.TryDequeue(out var evacuee))
+        {
+            if (TryComp<PullerComponent>(evacuee, out var puller) && puller.Pulling is { } pulled)
+                AddRelatedEvacuee(pulled);
+
+            if (TryComp<PullableComponent>(evacuee, out var pullable) && pullable.Puller is { } pullingEntity)
+                AddRelatedEvacuee(pullingEntity);
+        }
+
+        foreach (var evacuee in evacuees)
+        {
+            var coordinates = _transform.GetMapCoordinates(evacuee);
+            var offset = coordinates.Position - entry.Position;
+            _transform.SetMapCoordinates(evacuee, new MapCoordinates(exit.Position + offset, exit.MapId));
+        }
+
+        void AddEvacuee(EntityUid entity)
+        {
+            if (evacuees.Add(entity))
+                pending.Enqueue(entity);
+        }
+
+        void AddRelatedEvacuee(EntityUid entity)
+        {
+            if (entity == excluded || !TryComp<TransformComponent>(entity, out var entityXform) ||
+                entityXform.MapID != dungeonMap)
+                return;
+
+            AddEvacuee(entity);
         }
     }
 
@@ -468,6 +648,14 @@ public sealed partial class QGateSystem : EntitySystem
 
     private void ExecuteObjectiveActions(EntityUid uid, QGateDungeonObjectiveComponent objective, EntityUid user)
     {
+        EntityUid? riftQlippoth = null;
+        if (_dungeonsByGate.TryGetValue(objective.Gate, out var dungeon) && dungeon.Qlippoth is { } q && Exists(q))
+        {
+            riftQlippoth = q;
+            _initiation.Dispatch<OnGateObjectiveInteractedInitiation>(q,
+                new QlippothGateObjectiveEventArgs(uid, objective.Gate, user, objective.ObjectiveType));
+        }
+
         foreach (var action in objective.Actions)
         {
             if (action.Initiation is not QGateObjectiveInteractInitiation)
@@ -488,6 +676,10 @@ public sealed partial class QGateSystem : EntitySystem
                         for (var i = 0; i < spawn.Count; i++)
                             Spawn(spawn.Prototype, coordinates);
                         break;
+                    case SignalQlippothObjectiveResult signal:
+                        if (riftQlippoth != null)
+                            _initiation.Dispatch<OnSignalInitiation>(riftQlippoth.Value, new QlippothSignalEventArgs(uid, signal.Signal));
+                        break;
                 }
             }
         }
@@ -500,6 +692,15 @@ public sealed partial class QGateSystem : EntitySystem
 
         objective.Completed = true;
         Dirty(uid, objective);
+
+        if (_dungeonsByGate.TryGetValue(objective.Gate, out var dungeon) && dungeon.Qlippoth is { } qlippoth && Exists(qlippoth))
+        {
+            _research.RecordGateObjectiveEvidence(
+                qlippoth, uid, objective.Gate, objective.ObjectiveType, _timing.CurTime);
+            _initiation.Dispatch<OnGateObjectiveCompletedInitiation>(qlippoth,
+                new QlippothGateObjectiveEventArgs(uid, objective.Gate, user, objective.ObjectiveType));
+        }
+
         ReportObjectiveCompleted(objective.Gate);
     }
 
@@ -573,7 +774,7 @@ public sealed partial class QGateSystem : EntitySystem
 
         if (_dungeonsByGate.Remove(target, out var dungeon))
         {
-            EvacuateDungeon(dungeon.MapId, _transform.GetMapCoordinates(target));
+            EvacuateDungeon(dungeon.MapId, dungeon.Entry, _transform.GetMapCoordinates(target), dungeon.Qlippoth);
             DestroyRiftDungeon(dungeon);
         }
 
@@ -602,13 +803,17 @@ public sealed partial class QGateSystem : EntitySystem
         qgate.IsBreached = true;
         if (_dungeonsByGate.Remove(uid, out var dungeon))
         {
-            EvacuateDungeon(dungeon.MapId, _transform.GetMapCoordinates(uid));
+            EvacuateDungeon(dungeon.MapId, dungeon.Entry, _transform.GetMapCoordinates(uid), dungeon.Qlippoth);
             DestroyRiftDungeon(dungeon);
         }
 
         var coordinates = Transform(uid).Coordinates;
         if (qgate.QlippothPrototype is { } prototype)
-            Spawn(prototype, coordinates);
+        {
+            var spawned = Spawn(prototype, coordinates);
+            _initiation.Dispatch<OnArrivedInitiation>(spawned, new QlippothArrivalEventArgs(uid, QlippothArrivalKind.GateBreach));
+        }
+        _initiation.DispatchAll<OnAnyGateBreachedInitiation>(new QlippothTargetEventArgs(uid));
 
         _breachEffectsByGate[uid] = new List<EntityUid>
         {
@@ -636,6 +841,8 @@ public sealed partial class QGateSystem : EntitySystem
             var returnPortal = Spawn("ContainmentDimensionExitPortal", dungeon.Entry);
             _portals.RegisterReturnPortal(returnPortal, _transform.GetMapCoordinates(uid));
             _returnPortalsByGate[uid] = returnPortal;
+            if (dungeon.Qlippoth is { } riftQlippoth && Exists(riftQlippoth))
+                _initiation.Dispatch<OnGateClearedInitiation>(riftQlippoth, new QlippothTargetEventArgs(uid));
         }
 
         Dirty(uid, qgate);
@@ -647,7 +854,7 @@ public sealed partial class QGateSystem : EntitySystem
     {
         if (_dungeonsByGate.Remove(uid, out var dungeon))
         {
-            EvacuateDungeon(dungeon.MapId, _transform.GetMapCoordinates(uid));
+            EvacuateDungeon(dungeon.MapId, dungeon.Entry, _transform.GetMapCoordinates(uid), dungeon.Qlippoth);
             DestroyRiftDungeon(dungeon);
         }
 

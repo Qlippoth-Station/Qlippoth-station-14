@@ -5,6 +5,7 @@ using Content.Shared.Administration;
 using Content.Shared.Qlippoth;
 using Content.Shared.Qlippoth.Components;
 using Robust.Shared.Console;
+using Robust.Shared.Map;
 using Robust.Shared.Prototypes;
 
 namespace Content.Server.Qlippoth.Commands;
@@ -46,15 +47,23 @@ public sealed partial class QGateSpawnCommand : IConsoleCommand
             return;
         }
 
-        var coordinates = _entities.GetComponent<TransformComponent>(player).Coordinates;
+        var playerXform = _entities.GetComponent<TransformComponent>(player);
+        var coordinates = playerXform.Coordinates;
+        if (playerXform.GridUid is { } gridUid)
+        {
+            coordinates = new EntityCoordinates(gridUid,
+                new System.Numerics.Vector2(MathF.Floor(coordinates.X) + 0.5f, MathF.Floor(coordinates.Y) + 0.5f));
+        }
+
         var containment = _systems.GetEntitySystem<ContainmentDimensionSystem>();
-        if (containment.IsContainmentDimension(_entities.GetComponent<TransformComponent>(player).MapID))
+        if (containment.IsContainmentDimension(playerXform.MapID))
         {
             shell.WriteError("Q-Gates cannot spawn inside the Containment Dimension.");
             return;
         }
 
         var gate = _entities.SpawnEntity(GetPrototype(phase), coordinates);
+        _entities.GetComponent<TransformComponent>(gate).LocalRotation = Robust.Shared.Maths.Angle.Zero;
         if (args.Length == 2 && _entities.TryGetComponent<QGateComponent>(gate, out var qgate))
         {
             qgate.ArrivalEta = TimeSpan.Zero;

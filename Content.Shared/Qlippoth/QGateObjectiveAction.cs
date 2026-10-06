@@ -77,3 +77,14 @@ public sealed partial class SpawnQGateObjectiveEntityResult : QGateObjectiveResu
     [DataField]
     public int Count { get; set; } = 1;
 }
+
+/// <summary>
+/// Broadcasts a signal to the dungeon's Qlippoth entity (firing OnSignalInitiation with this key).
+/// </summary>
+[DataDefinition]
+public sealed partial class SignalQlippothObjectiveResult : QGateObjectiveResult
+{
+    [DataField(required: true)]
+    public string Signal { get; set; } = string.Empty;
+}
+

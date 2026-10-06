@@ -1,8 +1,9 @@
+using System;
+using System.Linq;
 using Content.Shared.Qlippoth.Components;
 using Content.Shared.UserInterface;
 using Robust.Server.GameObjects;
 using Robust.Shared.Timing;
-using System.Linq;
 
 namespace Content.Server.Qlippoth.Systems;
 
@@ -13,11 +14,13 @@ public sealed partial class QlippothContainmentConsoleSystem : EntitySystem
 {
     private static readonly TimeSpan OperationsBoardRefreshInterval = TimeSpan.FromSeconds(1);
 
-    [Dependency] private readonly UserInterfaceSystem _ui = default!;
-    [Dependency] private readonly QlippothMarketSystem _market = default!;
-    [Dependency] private readonly ContainmentDimensionSystem _containment = default!;
-    [Dependency] private readonly QGateSystem _qgates = default!;
-    [Dependency] private readonly IGameTiming _timing = default!;
+    [Dependency] private UserInterfaceSystem _ui = default!;
+    [Dependency] private QlippothMarketSystem _market = default!;
+    [Dependency] private ContainmentDimensionSystem _containment = default!;
+    [Dependency] private QGateSystem _qgates = default!;
+    [Dependency] private IGameTiming _timing = default!;
+
+    private TimeSpan _nextRadarUiUpdate;
     private TimeSpan _nextOperationsBoardRefresh;
 
     public override void Initialize()
@@ -45,18 +48,50 @@ public sealed partial class QlippothContainmentConsoleSystem : EntitySystem
         }
     }
 
+    public override void Update(float frameTime)
+    {
+        base.Update(frameTime);
+
+        if (_timing.CurTime < _nextRadarUiUpdate)
+            return;
+
+        _nextRadarUiUpdate = _timing.CurTime + TimeSpan.FromSeconds(1);
+        var radars = EntityQueryEnumerator<QlippothContainmentConsoleComponent, QGateRadarComponent>();
+        while (radars.MoveNext(out var uid, out var console, out _))
+        {
+            if (_ui.IsUiOpen(uid, QGateRadarUiKey.Key))
+                UpdateUiState(uid, console, QGateRadarUiKey.Key);
+        }
+    }
+
     private void OnMarketPurchase(EntityUid uid, QlippothContainmentConsoleComponent component,
         QlippothMarketPurchaseMessage message)
     {
         if (!component.Title.Contains("Auction", StringComparison.OrdinalIgnoreCase))
             return;
 
-        var purchased = component.SelectedMarketProtoId is { } selected
-            ? _market.PurchaseQlippoth(selected, uid, "command-starter")
-            : _market.PurchaseFirstAvailable(uid, "command-starter");
+        if (!_containment.IsChamberAvailable(message.TargetChamberId))
+        {
+            UpdateUiState(uid, component, QlippothMarketConsoleUiKey.Key,
+                Loc.GetString("containment-market-chamber-unavailable"));
+            return;
+        }
+
+        var result = component.SelectedMarketProtoId is { } selected
+            ? _market.PurchaseQlippoth(selected, uid, message.TargetChamberId)
+            : _market.PurchaseFirstAvailable(uid, message.TargetChamberId);
         UpdateUiState(uid, component, QlippothMarketConsoleUiKey.Key,
-            purchased ? Loc.GetString("containment-market-purchased") :
-                Loc.GetString("containment-market-insufficient-funds"));
+            result switch
+            {
+                QlippothMarketPurchaseResult.Success => Loc.GetString("containment-market-purchased"),
+                QlippothMarketPurchaseResult.ChamberUnavailable =>
+                    Loc.GetString("containment-market-chamber-unavailable"),
+                QlippothMarketPurchaseResult.InsufficientFunds =>
+                    Loc.GetString("containment-market-insufficient-funds"),
+                QlippothMarketPurchaseResult.CapsuleDeploymentFailed =>
+                    Loc.GetString("containment-market-deployment-failed"),
+                _ => Loc.GetString("containment-market-out-of-stock")
+            });
     }
 
     private void OnMarketSelect(EntityUid uid, QlippothContainmentConsoleComponent component,
@@ -105,6 +140,9 @@ public sealed partial class QlippothContainmentConsoleSystem : EntitySystem
 
         var entries = component.Title.Contains("Auction", StringComparison.OrdinalIgnoreCase)
             ? _market.GetMarketEntries().ToList()
+            : null;
+        var chambers = component.Title.Contains("Auction", StringComparison.OrdinalIgnoreCase)
+            ? _containment.GetAvailableChambers()
             : null;
         _ui.SetUiState(uid, uiKey,
             new QlippothContainmentConsoleBuiState(component.Title, statusOverride ?? component.Status, detail, entries));
