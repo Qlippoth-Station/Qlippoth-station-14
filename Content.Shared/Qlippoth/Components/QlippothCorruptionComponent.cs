@@ -63,7 +63,9 @@ public sealed record QlippothCorruptionAppliedEvent(
     EntityUid Target,
     EntityUid? SourceQlippoth,
     int Severity,
-    bool Spread);
+    bool Spread,
+    long EvidenceId,
+    TimeSpan OccurredAt);
 
 public sealed record QlippothCorruptionSpreadEvent(EntityUid Source, EntityUid Target, int Severity);
 
@@ -73,13 +75,20 @@ public sealed record QlippothCorruptionTransferredEvent(
     MapId ToMap,
     float RemainingSeconds);
 
-public sealed record QlippothCorruptionPulseEvent(EntityUid Target, EntityUid? SourceQlippoth, int Severity);
+public sealed record QlippothCorruptionPulseEvent(
+    EntityUid Target,
+    EntityUid? SourceQlippoth,
+    int Severity,
+    long EvidenceId,
+    TimeSpan OccurredAt);
 
 public sealed record QlippothCorruptionRemovedEvent(
     EntityUid Target,
     EntityUid? SourceQlippoth,
     int Severity,
-    QlippothCorruptionRemovalReason Reason);
+    QlippothCorruptionRemovalReason Reason,
+    long EvidenceId,
+    TimeSpan OccurredAt);
 
 public sealed record QlippothCorruptionSourceLostEvent(EntityUid Target, EntityUid SourceQlippoth);
 

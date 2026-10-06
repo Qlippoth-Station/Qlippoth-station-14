@@ -18,61 +18,72 @@
   parent: BaseItem
   id: QlippothQGearResonanceProbe
   name: Q-Gear resonance probe
-  description: A specimen-tuned probe that reads dimensional resonance without direct contact.
+  description: A specimen-tuned probe that scans a Qlippoth's resonance profile and compatible Q-Gate phases.
   components:
   - type: Sprite
     sprite: Objects/Specific/Xenoarchaeology/node_scanner.rsi
     state: icon
   - type: Item
     size: Small
+  - type: QlippothQGear
+    gearType: ResonanceProbe
 
 - type: entity
   parent: BaseItem
   id: QlippothQGearInversionTongs
   name: Q-Gear inversion tongs
-  description: Handling tongs balanced around one Qlippoth's anomalous mass signature.
+  description: Specimen-tuned tongs that can suppress active Qlippoth corruption on a reachable target.
   components:
   - type: Sprite
     sprite: Objects/Specific/Xenoarchaeology/node_scanner.rsi
     state: icon
   - type: Item
     size: Small
+  - type: QlippothQGear
+    gearType: InversionTongs
 
 - type: entity
   parent: BaseItem
   id: QlippothQGearBoundaryAnchor
   name: Q-Gear boundary anchor
-  description: A portable marker tuned to the containment boundary behavior of its Qlippoth.
+  description: Temporarily anchors a breached containment field, suppressing escape and cross-field corruption for 30 seconds.
   components:
   - type: Sprite
     sprite: Objects/Specific/Xenoarchaeology/node_scanner.rsi
     state: icon
   - type: Item
     size: Small
+  - type: QlippothQGear
+    gearType: BoundaryAnchor
+    cooldownSeconds: 60
 
 - type: entity
   parent: BaseItem
   id: QlippothQGearGateCompass
   name: Q-Gear gate compass
-  description: A hand-held directional instrument tuned to the specimen's Q-Gate signature.
+  description: Reads the phase, status, and distance of a reachable Q-Gate within 20 meters.
   components:
   - type: Sprite
     sprite: Objects/Specific/Xenoarchaeology/node_scanner.rsi
     state: icon
   - type: Item
     size: Small
+  - type: QlippothQGear
+    gearType: GateCompass
 
 - type: entity
   parent: BaseItem
   id: QlippothQGearHorizonLens
   name: Q-Gear horizon lens
-  description: A dimensional lens tuned to the boundary signature of a Horizon-class Qlippoth.
+  description: Reveals the severity, remaining duration, and source attribution of active Qlippoth corruption.
   components:
   - type: Sprite
     sprite: Objects/Specific/Xenoarchaeology/node_scanner.rsi
     state: icon
   - type: Item
     size: Small
+  - type: QlippothQGear
+    gearType: HorizonLens
 
 - type: entity
   parent: BaseBlueprint

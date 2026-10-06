@@ -16,6 +16,7 @@ public sealed class QlippothResearchConsoleBoundUserInterface(EntityUid owner, E
 {
     private DefaultWindow? _window;
     private Label? _status;
+    private Label? _outcome;
     private BoxContainer? _nodes;
 
     protected override void Open()
@@ -30,6 +31,8 @@ public sealed class QlippothResearchConsoleBoundUserInterface(EntityUid owner, E
         var content = new BoxContainer { Orientation = BoxContainer.LayoutOrientation.Vertical };
         _status = new Label { Text = Loc.GetString("research-console-waiting") };
         content.AddChild(_status);
+        _outcome = new Label();
+        content.AddChild(_outcome);
         _nodes = new BoxContainer { Orientation = BoxContainer.LayoutOrientation.Vertical };
         content.AddChild(new ScrollContainer
         {
@@ -45,7 +48,8 @@ public sealed class QlippothResearchConsoleBoundUserInterface(EntityUid owner, E
     protected override void UpdateState(BoundUserInterfaceState state)
     {
         base.UpdateState(state);
-        if (_status == null || _nodes == null || state is not QlippothResearchConsoleBuiState researchState)
+        if (_status == null || _outcome == null || _nodes == null ||
+            state is not QlippothResearchConsoleBuiState researchState)
             return;
 
         _status.Text = researchState.ChamberOccupied
@@ -55,6 +59,9 @@ public sealed class QlippothResearchConsoleBoundUserInterface(EntityUid owner, E
             : Loc.GetString(researchState.HasLinkedChamber
                 ? "research-console-empty"
                 : "research-console-no-target");
+        _outcome.Text = researchState.LatestOutcome == null
+            ? string.Empty
+            : Loc.GetString(researchState.LatestOutcome);
 
         _nodes.RemoveAllChildren();
         foreach (var node in researchState.Nodes)

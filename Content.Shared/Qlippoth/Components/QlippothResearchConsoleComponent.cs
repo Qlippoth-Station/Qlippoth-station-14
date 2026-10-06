@@ -35,6 +35,7 @@ public sealed class QlippothResearchConsoleBuiState : BoundUserInterfaceState
     public bool ChamberOccupied;
     public string? QlippothName;
     public float ActivityCooldown;
+    public string? LatestOutcome;
     public List<QlippothResearchNodeState> Nodes;
 
     public QlippothResearchConsoleBuiState(
@@ -42,12 +43,14 @@ public sealed class QlippothResearchConsoleBuiState : BoundUserInterfaceState
         bool chamberOccupied,
         string? qlippothName,
         float activityCooldown,
+        string? latestOutcome,
         List<QlippothResearchNodeState> nodes)
     {
         HasLinkedChamber = hasLinkedChamber;
         ChamberOccupied = chamberOccupied;
         QlippothName = qlippothName;
         ActivityCooldown = activityCooldown;
+        LatestOutcome = latestOutcome;
         Nodes = nodes;
     }
 }

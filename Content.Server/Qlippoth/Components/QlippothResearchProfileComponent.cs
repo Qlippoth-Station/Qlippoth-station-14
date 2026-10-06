@@ -30,6 +30,13 @@ public sealed partial class QlippothResearchProfileComponent : Component
     [DataField]
     public TimeSpan NextActivityAt;
 
+    /// <summary>Verified server events attributed to this specimen and already considered for progress.</summary>
+    [DataField]
+    public List<QlippothResearchEvidenceRecord> Evidence = new();
+
+    [DataField]
+    public string? LatestOutcome;
+
     /// <summary>Non-empty only after a valid graph has been generated and persisted.</summary>
     [DataField]
     public bool GraphGenerated;

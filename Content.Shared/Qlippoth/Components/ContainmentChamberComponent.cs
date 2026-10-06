@@ -31,4 +31,7 @@ public sealed partial class ContainmentChamberComponent : Component
 
     [DataField("escapeSpeed")]
     public float EscapeSpeed { get; set; } = 1.5f;
+
+    [DataField]
+    public TimeSpan BoundaryAnchorExpiresAt { get; set; }
 }

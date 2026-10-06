@@ -17,6 +17,43 @@ public enum QlippothResearchActivity : byte
     ContainmentDiagnostics,
 }
 
+public enum QlippothResearchEvidenceType : byte
+{
+    ChamberBreached,
+    ChamberRepaired,
+    GateStabilized,
+    GateDataExtracted,
+    GateSealed,
+    CorruptionApplied,
+    CorruptionPulse,
+    CorruptionSpread,
+    CorruptionTreated,
+    ChamberDiagnostics,
+}
+
+/// <summary>A verified, specimen-local event retained to prevent the same event being credited twice.</summary>
+[DataDefinition]
+public sealed partial class QlippothResearchEvidenceRecord
+{
+    [DataField(required: true)]
+    public string Id { get; set; } = string.Empty;
+
+    [DataField(required: true)]
+    public QlippothResearchEvidenceType Type { get; set; }
+
+    [DataField]
+    public TimeSpan RecordedAt { get; set; }
+
+    [DataField]
+    public string Context { get; set; } = string.Empty;
+
+    [DataField]
+    public bool HighTier { get; set; }
+
+    [DataField]
+    public bool ProgressGranted { get; set; }
+}
+
 /// <summary>
 /// A guaranteed checkpoint that every specimen of a Qlippoth kind can reveal. These checkpoint
 /// templates are mixed into a procedurally generated per-specimen tree, like artifact nodes are
@@ -40,6 +77,12 @@ public sealed partial class QlippothResearchNode
     /// <summary>Which experiment types may reveal this checkpoint on a specimen.</summary>
     [DataField]
     public List<QlippothResearchActivity> Activities { get; set; } = new();
+
+    [DataField]
+    public List<QlippothResearchEvidenceType> RequiredEvidenceTypes { get; set; } = new();
+
+    [DataField]
+    public bool RequiresHighTierEvidence { get; set; }
 }
 
 /// <summary>
@@ -69,6 +112,12 @@ public sealed partial class QlippothResearchNodeProgress
 
     [DataField]
     public List<QlippothResearchActivity> Activities { get; set; } = new();
+
+    [DataField]
+    public List<QlippothResearchEvidenceType> RequiredEvidenceTypes { get; set; } = new();
+
+    [DataField]
+    public bool RequiresHighTierEvidence { get; set; }
 
     [DataField]
     public bool IsCheckpoint { get; set; }

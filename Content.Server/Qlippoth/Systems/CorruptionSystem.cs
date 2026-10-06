@@ -28,6 +28,7 @@ public sealed partial class CorruptionSystem : EntitySystem
     [Dependency] private SharedTransformSystem _transform = default!;
 
     private readonly Dictionary<EntityUid, TimeSpan> _nextMitigationNotice = new();
+    private long _nextResearchEvidenceId;
 
     public override void Initialize()
     {
@@ -82,7 +83,8 @@ public sealed partial class CorruptionSystem : EntitySystem
                     corruption.PulseTimeRemaining = corruption.PulseInterval;
                     TrySpreadCorruption(uid, corruption);
                     RaiseLocalEvent(uid, new QlippothCorruptionPulseEvent(
-                        uid, corruption.SourceQlippoth, corruption.Severity), broadcast: true);
+                        uid, corruption.SourceQlippoth, corruption.Severity,
+                        ++_nextResearchEvidenceId, _timing.CurTime), broadcast: true);
                     _popup.PopupEntity(Loc.GetString("qlippoth-corruption-pulse"), uid, uid);
 
                     if (corruption.SourceQlippoth is { } pulseSource &&
@@ -140,7 +142,8 @@ public sealed partial class CorruptionSystem : EntitySystem
         Dirty(uid, corruption);
 
         RaiseLocalEvent(uid, new QlippothCorruptionAppliedEvent(
-            uid, corruption.SourceQlippoth, severity, isSpread), broadcast: true);
+            uid, corruption.SourceQlippoth, severity, isSpread,
+            ++_nextResearchEvidenceId, _timing.CurTime), broadcast: true);
         _popup.PopupEntity(Loc.GetString("qlippoth-corruption-applied"), uid, uid);
         if (corruption.SourceQlippoth is { } sourceUid &&
             Exists(sourceUid) && HasComp<QlippothActionsComponent>(sourceUid))
@@ -162,7 +165,8 @@ public sealed partial class CorruptionSystem : EntitySystem
         Dirty(uid, corruption);
         var source = corruption.SourceQlippoth;
         var severity = corruption.Severity;
-        RaiseLocalEvent(uid, new QlippothCorruptionRemovedEvent(uid, source, severity, reason), broadcast: true);
+        RaiseLocalEvent(uid, new QlippothCorruptionRemovedEvent(
+            uid, source, severity, reason, ++_nextResearchEvidenceId, _timing.CurTime), broadcast: true);
         if (source is { } sourceUid && Exists(sourceUid) && HasComp<QlippothActionsComponent>(sourceUid))
         {
             _initiation.Dispatch<OnCorruptionRemovedInitiation>(sourceUid,

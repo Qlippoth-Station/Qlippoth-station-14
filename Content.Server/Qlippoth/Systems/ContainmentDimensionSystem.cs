@@ -1,6 +1,7 @@
 using System.Numerics;
 using Content.Server.Atmos.EntitySystems;
 using Content.Shared.Maps;
+using Content.Shared.Qlippoth;
 using Robust.Shared.Map.Components;
 using Robust.Shared.Map;
 using Content.Shared.Atmos;
@@ -19,6 +20,7 @@ using Robust.Shared.Network;
 using Robust.Server.Player;
 using Robust.Shared.Physics.Components;
 using Robust.Shared.Physics.Systems;
+using Robust.Shared.Timing;
 
 namespace Content.Server.Qlippoth.Systems;
 
@@ -37,12 +39,15 @@ public sealed partial class ContainmentDimensionSystem : EntitySystem
     [Dependency] private PopupSystem _popup = default!;
     [Dependency] private DamageableSystem _damageable = default!;
     [Dependency] private SharedPhysicsSystem _physics = default!;
+    [Dependency] private QlippothResearchConsoleSystem _research = default!;
+    [Dependency] private IGameTiming _timing = default!;
 
     public MapId ContainmentMapId { get; private set; } = MapId.Nullspace;
     private bool _layoutBuilt;
     private EntityUid _containmentGrid = EntityUid.Invalid;
     private int _nextChamberIndex;
     private readonly Dictionary<EntityUid, EntityUid> _breachAlarms = new();
+    private readonly Dictionary<EntityUid, int> _breachSequences = new();
     private static readonly (ContainmentDepartment Department, Vector2 Position)[] DepartmentPortals =
     {
         (ContainmentDepartment.Cargo, new Vector2(-15.5f, 7.5f)),
@@ -83,7 +88,8 @@ public sealed partial class ContainmentDimensionSystem : EntitySystem
             }
 
             var offset = qlippothTransform.Coordinates.Position - chamberTransform.Coordinates.Position;
-            if (chamber.IsBreached)
+            var anchored = IsBoundaryAnchorActive(chamberTransform.Owner);
+            if (chamber.IsBreached && !anchored)
             {
                 var direction = offset.LengthSquared() > 0.01f
                     ? Vector2.Normalize(offset)
@@ -118,6 +124,10 @@ public sealed partial class ContainmentDimensionSystem : EntitySystem
         {
             chamber.IsBreached = false;
             Dirty(uid, chamber);
+            if (chamber.ContainedQlippoth is { } repairedOccupant)
+                _research.RecordContainmentEvidence(uid, repairedOccupant,
+                    QlippothResearchEvidenceType.ChamberRepaired, _breachSequences.GetValueOrDefault(uid),
+                    _timing.CurTime);
             if (_breachAlarms.Remove(uid, out var alarm) && Exists(alarm))
                 QueueDel(alarm);
             _chat.DispatchGlobalAnnouncement(
@@ -131,10 +141,16 @@ public sealed partial class ContainmentDimensionSystem : EntitySystem
 
         chamber.IsBreached = true;
         Dirty(uid, chamber);
+        var breachSequence = _breachSequences.GetValueOrDefault(uid) + 1;
+        _breachSequences[uid] = breachSequence;
         var alarmCoordinates = Transform(uid).Coordinates;
         _breachAlarms[uid] = Spawn("QlippothContainmentBreachAlarm", alarmCoordinates);
         if (chamber.ContainedQlippoth is { } contained && Exists(contained))
+        {
+            _research.RecordContainmentEvidence(uid, contained,
+                QlippothResearchEvidenceType.ChamberBreached, breachSequence, _timing.CurTime);
             _initiation.Dispatch<OnContainmentBreachedInitiation>(contained, new QlippothTargetEventArgs(uid));
+        }
         _chat.DispatchGlobalAnnouncement(
             Loc.GetString("containment-chamber-breach", ("chamber", chamber.ChamberId)),
             "CentCom Emergency Alert", playSound: true, colorOverride: Color.FromHex("#DC143C"));
@@ -148,6 +164,7 @@ public sealed partial class ContainmentDimensionSystem : EntitySystem
     {
         if (_breachAlarms.Remove(uid, out var alarm) && Exists(alarm))
             QueueDel(alarm);
+        _breachSequences.Remove(uid);
 
         if (!chamber.IsOccupied || chamber.ContainedQlippoth is not { } qlippoth ||
             !Exists(qlippoth) || !TryComp<TransformComponent>(uid, out var chamberTransform) ||
@@ -389,7 +406,8 @@ public sealed partial class ContainmentDimensionSystem : EntitySystem
         var chambers = EntityQueryEnumerator<ContainmentChamberComponent, TransformComponent>();
         while (chambers.MoveNext(out var chamberUid, out var chamber, out var chamberTransform))
         {
-            if (chamber.IsBreached || !chamber.IsBuilt || chamberTransform.MapID != targetTransform.MapID)
+            if ((chamber.IsBreached && !IsBoundaryAnchorActive(chamberUid)) ||
+                !chamber.IsBuilt || chamberTransform.MapID != targetTransform.MapID)
                 continue;
 
             var chamberPosition = _transform.GetMapCoordinates(chamberUid).Position;
@@ -408,6 +426,12 @@ public sealed partial class ContainmentDimensionSystem : EntitySystem
         }
 
         return false;
+    }
+
+    public bool IsBoundaryAnchorActive(EntityUid chamberUid)
+    {
+        return TryComp<ContainmentChamberComponent>(chamberUid, out var chamber) &&
+               chamber.BoundaryAnchorExpiresAt > _timing.CurTime;
     }
 
     private void BuildContainmentLayout()

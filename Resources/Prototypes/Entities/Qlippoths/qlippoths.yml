@@ -1719,6 +1719,7 @@
           name: qlippoth-checkpoint-threshold
           description: qlippoth-checkpoint-threshold-desc
           activities: [ResonanceScan, ContainmentDiagnostics]
+          requiredEvidenceTypes: [ChamberDiagnostics]
       dungeon: !type:ArenaDungeon
         width: 28
         height: 21
@@ -1767,7 +1768,9 @@
           id: abyssal-field
           name: qlippoth-checkpoint-abyss
           description: qlippoth-checkpoint-abyss-desc
-          activities: [ContainmentDiagnostics, ControlledTest]
+          activities: [Observation, ResonanceScan, ContainmentDiagnostics, ControlledTest]
+          requiredEvidenceTypes: [GateDataExtracted, CorruptionApplied, CorruptionPulse, CorruptionSpread, CorruptionTreated]
+          requiresHighTierEvidence: true
       dungeon: !type:ArenaDungeon
         width: 32
         height: 24
@@ -1851,7 +1854,9 @@
           id: horizon-boundary
           name: qlippoth-checkpoint-horizon
           description: qlippoth-checkpoint-horizon-desc
-          activities: [ResonanceScan, ContainmentDiagnostics]
+          activities: [Observation, ResonanceScan, ContainmentDiagnostics]
+          requiredEvidenceTypes: [GateDataExtracted, CorruptionApplied, CorruptionPulse, CorruptionSpread, CorruptionTreated]
+          requiresHighTierEvidence: true
       dungeon: !type:ArenaDungeon
         width: 36
         height: 27

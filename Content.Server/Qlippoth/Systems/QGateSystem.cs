@@ -56,6 +56,7 @@ public sealed partial class QGateSystem : EntitySystem
     [Dependency] private PopupSystem _popup = default!;
     [Dependency] private SharedAudioSystem _audio = default!;
     [Dependency] private QlippothActionInitiationSystem _initiation = default!;
+    [Dependency] private QlippothResearchConsoleSystem _research = default!;
     [Dependency] private AtmosphereSystem _atmosphere = default!;
     [Dependency] private MobStateSystem _mobState = default!;
 
@@ -691,13 +692,16 @@ public sealed partial class QGateSystem : EntitySystem
 
         objective.Completed = true;
         Dirty(uid, objective);
-        ReportObjectiveCompleted(objective.Gate);
 
         if (_dungeonsByGate.TryGetValue(objective.Gate, out var dungeon) && dungeon.Qlippoth is { } qlippoth && Exists(qlippoth))
         {
+            _research.RecordGateObjectiveEvidence(
+                qlippoth, uid, objective.Gate, objective.ObjectiveType, _timing.CurTime);
             _initiation.Dispatch<OnGateObjectiveCompletedInitiation>(qlippoth,
                 new QlippothGateObjectiveEventArgs(uid, objective.Gate, user, objective.ObjectiveType));
         }
+
+        ReportObjectiveCompleted(objective.Gate);
     }
 
     public void ReportObjectiveCompleted(EntityUid gateUid)
