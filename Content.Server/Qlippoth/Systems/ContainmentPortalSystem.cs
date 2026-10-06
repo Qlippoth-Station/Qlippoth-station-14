@@ -1,4 +1,4 @@
-using Content.Server.Chat.Systems;
+using Content.Server.Chat.Managers;
 using Content.Shared.GameTicking;
 using Content.Shared.Interaction;
 using Content.Shared.Qlippoth.Components;
@@ -10,7 +10,7 @@ public sealed partial class ContainmentPortalSystem : EntitySystem
 {
     [Dependency] private ContainmentDimensionSystem _containment = default!;
     [Dependency] private SharedTransformSystem _transform = default!;
-    [Dependency] private ChatSystem _chat = default!;
+    [Dependency] private IChatManager _chat = default!;
     private readonly Dictionary<EntityUid, MapCoordinates> _returnCoordinates = new();
     private readonly Dictionary<EntityUid, MapCoordinates> _portalDestinations = new();
 

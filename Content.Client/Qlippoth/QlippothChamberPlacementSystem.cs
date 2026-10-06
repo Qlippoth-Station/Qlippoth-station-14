@@ -9,13 +9,13 @@ namespace Content.Client.Qlippoth;
 /// <summary>
 /// Starts the standard placement overlay while a chamber construction kit is held.
 /// </summary>
-public sealed class QlippothChamberPlacementSystem : EntitySystem
+public sealed partial class QlippothChamberPlacementSystem : EntitySystem
 {
     private const string PlacementMode = nameof(QlippothChamberPlacementMode);
 
-    [Dependency] private readonly IPlayerManager _playerManager = default!;
-    [Dependency] private readonly IPlacementManager _placement = default!;
-    [Dependency] private readonly HandsSystem _hands = default!;
+    [Dependency] private IPlayerManager _playerManager = default!;
+    [Dependency] private IPlacementManager _placement = default!;
+    [Dependency] private HandsSystem _hands = default!;
 
     public override void Update(float frameTime)
     {

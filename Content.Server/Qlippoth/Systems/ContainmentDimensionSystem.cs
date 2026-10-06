@@ -144,7 +144,9 @@ public sealed partial class ContainmentDimensionSystem : EntitySystem
 
         var mapUid = map.Value.Owner;
         ContainmentMapId = map.Value.Comp.MapId;
-        _containmentGrid = grids.Single().Owner;
+        using var gridEnumerator = grids.GetEnumerator();
+        gridEnumerator.MoveNext();
+        _containmentGrid = gridEnumerator.Current.Owner;
         _metadata.SetEntityName(mapUid, "Qlippoth Containment Dimension");
         var moles = new float[Atmospherics.AdjustedNumberOfGases];
         moles[(int) Gas.Oxygen] = 21.824779f;
@@ -181,14 +183,25 @@ public sealed partial class ContainmentDimensionSystem : EntitySystem
 
     private void LinkStaticResearchConsole()
     {
-        var chamber = GetChamberAt(new Vector2(-17.5f, 36.5f));
+        var chamber = EntityUid.Invalid;
+        var chambers = EntityQueryEnumerator<ContainmentChamberComponent, TransformComponent>();
+        while (chambers.MoveNext(out var uid, out var chamberComponent, out var xform))
+        {
+            if (xform.MapID != ContainmentMapId || chamberComponent.ChamberId != "command-starter")
+                continue;
+
+            chamber = uid;
+            break;
+        }
+
         if (chamber == EntityUid.Invalid)
             throw new InvalidOperationException("The static Containment Dimension map is missing its starter chamber.");
 
         var consoles = EntityQueryEnumerator<QlippothResearchConsoleComponent, TransformComponent>();
         while (consoles.MoveNext(out var uid, out var console, out var xform))
         {
-            if (xform.MapID != ContainmentMapId || Vector2.Distance(xform.Coordinates.Position, new Vector2(-18.5f, 36.5f)) > 0.75f)
+            if (xform.MapID != ContainmentMapId ||
+                Vector2.Distance(xform.Coordinates.Position, new Vector2(-18.5f, 36.5f)) > 0.75f)
                 continue;
 
             console.LinkedChamber = chamber;
