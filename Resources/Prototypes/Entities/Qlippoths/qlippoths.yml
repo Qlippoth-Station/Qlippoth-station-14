@@ -283,6 +283,7 @@
 # SHOWCASE INSTANCE - RESULT TESTER #
 # ============================================================================================
 # RULE: EVERY QlippothResult MUST BE ON THIS ENTITY. New Results should be constantly added to this as this is the main testing object for results.
+# ENFORCED: Content.IntegrationTests/Tests/Qlippoth/ShowcaseCoverageTest.cs fails CI when a result class is missing here.
 # When you add a new result class to Content.Server/Qlippoth/Actions/QlippothResult.cs, add it to one of the
 # verbs below (or to a new verb) in the same change. This idol is the in-game tester for the whole result list.
 #
@@ -998,6 +999,7 @@
 # SHOWCASE INSTANCE - INITIATION TESTER #
 # ============================================================================================
 # RULE: EVERY QlippothInitiation MUST BE ON THIS ENTITY.
+# ENFORCED: Content.IntegrationTests/Tests/Qlippoth/ShowcaseCoverageTest.cs fails CI when an initiation class is missing here.
 # When you add a new initiation class to Content.Server/Qlippoth/Actions/QlippothInitiation.cs, add one action for it
 # below in the same change. This idol is the in-game tester for the whole initiation list.
 #

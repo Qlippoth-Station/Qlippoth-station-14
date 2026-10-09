@@ -20,6 +20,8 @@ Results run in order. A result returns `false` when it could not do its job (no 
 
 Debugging: `traceResults: true` on the `QlippothActions` component sends the actor one chat line per fired action and logs the same line, e.g. `[test04Hazards] DebugTrace OK · Ignite OK (→ Urist; Urist now 3 stacks, on fire=True) · Electrocute OK (→ Urist) · InjectReagent FAIL (Urist has no bloodstream)`. The marks are plain words because the in-game chat fonts have no tick/cross glyphs; in chat they are coloured: green `OK` means the result did its job, red `FAIL` that it ran but had nothing to do or failed its check, yellow `STOP` marks a `StopResult`, and red `CRASH` means the result threw an exception (the action continues with the next result and the exception goes to the server log). The bracket after each mark is the detail the result or a helper attached with `TraceDetail(...)`: resolved targets, before→after numbers, or the reason for a FAIL. When you write a new result, call `resultSystem.TraceDetail` on every early return and once on success so a tester can tell "worked" from "did nothing" without reading the code.
 
+Coverage: `Content.IntegrationTests/Tests/Qlippoth/ShowcaseCoverageTest.cs` fails CI when a concrete `QlippothResult` is not used on `ResultShowcaseIdol` or a concrete `QlippothInitiation` is not used on `InitiationShowcaseIdol`. Add the new class to the matching idol in the same change, with an "Expect:" (results) or "trigger:" (initiations) note. A weekly routine also checks master and opens a PR for anything that slipped through.
+
 ## Shared building blocks
 
 ### `filter:` (QlippothTargetFilter)
