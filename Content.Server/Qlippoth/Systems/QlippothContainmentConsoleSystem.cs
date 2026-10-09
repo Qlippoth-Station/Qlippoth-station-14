@@ -11,11 +11,11 @@ namespace Content.Server.Qlippoth.Systems;
 /// </summary>
 public sealed partial class QlippothContainmentConsoleSystem : EntitySystem
 {
-    [Dependency] private readonly UserInterfaceSystem _ui = default!;
-    [Dependency] private readonly QlippothMarketSystem _market = default!;
-    [Dependency] private readonly ContainmentDimensionSystem _containment = default!;
-    [Dependency] private readonly QGateSystem _qgates = default!;
-    [Dependency] private readonly IGameTiming _timing = default!;
+    [Dependency] private UserInterfaceSystem _ui = default!;
+    [Dependency] private QlippothMarketSystem _market = default!;
+    [Dependency] private ContainmentDimensionSystem _containment = default!;
+    [Dependency] private QGateSystem _qgates = default!;
+    [Dependency] private IGameTiming _timing = default!;
 
     public override void Initialize()
     {

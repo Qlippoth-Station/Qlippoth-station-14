@@ -228,6 +228,11 @@ namespace Content.Shared.Popups
         ///     but is not life-threatening.
         /// </summary>
         Large,
-        LargeCaution
+        LargeCaution,
+        /// <summary>
+        ///     Qlippoth popups are the bright purple, medium-sized popups used by Qlippoth results and their debug traces,
+        ///     so they stand out from ordinary gameplay popups while testing.
+        /// </summary>
+        Qlippoth
     }
 }

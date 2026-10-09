@@ -9,7 +9,7 @@ namespace Content.Server.Qlippoth.Systems;
 /// QlippothComponent (gatePhases / spawnWeight) on every entity prototype. QGateSystem asks this
 /// when a rift opens. Nothing else lives here; presence and movement have their own systems.
 /// </summary>
-public sealed class QlippothSystem : EntitySystem
+public sealed partial class QlippothSystem : EntitySystem
 {
     [Dependency] private IPrototypeManager _prototypes = default!;
     [Dependency] private IComponentFactory _factory = default!;

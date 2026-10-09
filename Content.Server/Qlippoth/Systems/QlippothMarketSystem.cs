@@ -14,15 +14,15 @@ namespace Content.Server.Qlippoth.Systems;
 /// Secured Qlippoths (cleared rifts) go on sale here. Price comes from the Qlippoth prototype (QlippothComponent.MarketPrice);
 /// the gate phase it came through is kept only for display.
 /// </summary>
-public sealed class QlippothMarketSystem : EntitySystem
+public sealed partial class QlippothMarketSystem : EntitySystem
 {
     private readonly List<EntProtoId> _availableMarketQlippoths = new();
     private readonly Dictionary<EntProtoId, QGatePhase> _marketPhases = new();
-    [Dependency] private readonly IPrototypeManager _prototypes = default!;
-    [Dependency] private readonly CargoSystem _cargo = default!;
-    [Dependency] private readonly StationSystem _stations = default!;
-    [Dependency] private readonly QlippothSystem _qlippoths = default!;
-    [Dependency] private readonly QGateSystem _gates = default!;
+    [Dependency] private IPrototypeManager _prototypes = default!;
+    [Dependency] private CargoSystem _cargo = default!;
+    [Dependency] private StationSystem _stations = default!;
+    [Dependency] private QlippothSystem _qlippoths = default!;
+    [Dependency] private QGateSystem _gates = default!;
 
     public void AddSecuredQlippothToMarket(EntProtoId protoId, QGatePhase phase)
     {

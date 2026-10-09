@@ -10,10 +10,11 @@ namespace Content.Server.Qlippoth.Systems;
 /// Handles the physical transport of Qlippoth capsules from Cargo to Containment Dimension chambers.
 /// When a capsule is docked into a matching chamber, the Qlippoth entity is spawned inside.
 /// </summary>
-public sealed class QlippothTransportSystem : EntitySystem
+public sealed partial class QlippothTransportSystem : EntitySystem
 {
-    [Dependency] private readonly ContainmentDimensionSystem _containmentDim = default!;
-    [Dependency] private readonly ChatSystem _chatSystem = default!;
+    [Dependency] private ContainmentDimensionSystem _containmentDim = default!;
+    [Dependency] private ChatSystem _chatSystem = default!;
+    [Dependency] private QlippothActionInitiationSystem _initiation = default!;
 
     public override void Initialize()
     {
@@ -132,6 +133,9 @@ public sealed class QlippothTransportSystem : EntitySystem
         chamber.IsOccupied = true;
         chamber.ContainedQlippoth = qlippothUid;
         Dirty(chamberUid, chamber);
+
+        _initiation.Dispatch<OnArrivedInitiation>(qlippothUid, new QlippothArrivalEventArgs(chamberUid, QlippothArrivalKind.ContainmentDock));
+        _initiation.Dispatch<OnContainedInitiation>(qlippothUid, new QlippothArrivalEventArgs(chamberUid, QlippothArrivalKind.ContainmentDock));
 
         // Destroy the capsule
         QueueDel(capsuleUid);

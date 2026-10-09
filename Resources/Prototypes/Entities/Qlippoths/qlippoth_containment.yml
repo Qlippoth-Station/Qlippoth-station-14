@@ -1,4 +1,4 @@
-# Qlippoth Containment System Prototypes
+﻿# Qlippoth Containment System Prototypes
 # Consoles, Chambers, Capsules, and Portals
 
 # Q-Gate Tracker Console (Security & Science)
@@ -115,6 +115,7 @@
     - state: ContainmentChamber
       map: ["base"]
   - type: Damageable
+  - type: Injurable
     damageContainer: Inorganic
 
 # Active at round start in the Command sector. Only the Captain and RD may enter.
@@ -160,8 +161,9 @@
         - MachineLayer
   - type: Pullable
   - type: Damageable
-    damageContainer: Inorganic
     damageModifierSet: Metallic
+  - type: Injurable
+    damageContainer: Inorganic
   - type: Destructible
     thresholds:
     - trigger:
