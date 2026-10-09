@@ -229,7 +229,8 @@ namespace Content.Server.Qlippoth
                 {
                     CurrentAction = action;
                     StopRequested = false;
-                    var traceParts = trace ? new List<string>() : null;
+                    var traceParts = trace ? new List<string>() : null;   // plain text (log, popup)
+                    var traceMarkup = trace ? new List<string>() : null;  // same line with coloured marks (chat)
 
                     foreach (var result in action.Results)
                     {
@@ -252,11 +253,16 @@ namespace Content.Server.Qlippoth
                             threw = true;
                         }
 
-                        if (traceParts != null)
+                        if (traceParts != null && traceMarkup != null)
                         {
-                            var mark = StopRequested ? "■" : threw ? "💥" : ok ? "✓" : "✗";
+                            // Plain ASCII marks: the chat fonts have no tick / cross glyphs, they rendered as boxes.
+                            var (mark, colour) = StopRequested ? ("STOP", "#FFD24D")
+                                : threw ? ("CRASH", "#FF2020")
+                                : ok ? ("OK", "#60FF60")
+                                : ("FAIL", "#FF6A6A");
                             var detail = _traceDetails.Count > 0 ? $" ({string.Join("; ", _traceDetails)})" : string.Empty;
                             traceParts.Add($"{ResultLabel(result)} {mark}{detail}");
+                            traceMarkup.Add($"{FormattedMessage.EscapeText(ResultLabel(result))} [color={colour}]{mark}[/color]{FormattedMessage.EscapeText(detail)}");
                         }
 
                         if (StopRequested)
@@ -265,8 +271,10 @@ namespace Content.Server.Qlippoth
                             break;
                     }
 
-                    if (traceParts != null && Exists(uid))
-                        SendTrace(uid, eventArgs, $"[{action.ActionName}] {string.Join(" · ", traceParts)}");
+                    if (traceParts != null && traceMarkup != null && Exists(uid))
+                        SendTrace(uid, eventArgs,
+                            $"[{action.ActionName}] {string.Join(" · ", traceParts)}",
+                            $"{FormattedMessage.EscapeText($"[{action.ActionName}]")} {string.Join(" · ", traceMarkup)}");
                 }
             }
             finally
@@ -288,13 +296,15 @@ namespace Content.Server.Qlippoth
         /// <summary>
         /// One traceResults line: to the actor's chat when the initiation knows one, otherwise a popup at the Qlippoth. Always logged.
         /// </summary>
-        private void SendTrace(EntityUid uid, object? eventArgs, string text)
+        /// <param name="text">Plain line for the log and the popup fallback.</param>
+        /// <param name="markup">The same line, already escaped, with the OK / FAIL / STOP / CRASH marks coloured.</param>
+        private void SendTrace(EntityUid uid, object? eventArgs, string text, string markup)
         {
             Sawmill.Info($"[{EntityName(uid)} {uid}] trace {text}");
 
             if (ResolveActor(uid, eventArgs) is { } actor && TryComp<ActorComponent>(actor, out var session))
             {
-                var wrapped = $"[color=#C040FF]{FormattedMessage.EscapeText(text)}[/color]";
+                var wrapped = $"[color=#C040FF]{markup}[/color]";
                 _chatManager.ChatMessageToOne(ChatChannel.Local, text, wrapped, EntityUid.Invalid, false, session.PlayerSession.Channel, Color.FromHex("#C040FF"));
                 return;
             }
